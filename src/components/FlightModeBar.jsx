@@ -9,6 +9,7 @@ const EVENT_STYLES = {
 }
 
 export default function FlightModeBar({ rows, cursorIndex, onCursorChange, events = [] }) {
+  const activeMode = rows[cursorIndex]?.['FM'] || null
   const segments = useMemo(() => {
     if (!rows.length) return []
     const segs = []
@@ -93,14 +94,29 @@ export default function FlightModeBar({ rows, cursorIndex, onCursorChange, event
         />
       </div>
 
-      {/* Legend */}
+      {/* Legend — active mode lights up */}
       <div className="fm-legend">
-        {uniqueModes.map(mode => (
-          <div key={mode} className="fm-legend-item">
-            <div className="fm-legend-dot" style={{ background: fmColor(mode) }} />
-            {mode}
-          </div>
-        ))}
+        {uniqueModes.map(mode => {
+          const isActive = mode === activeMode
+          return (
+            <div
+              key={mode}
+              className={`fm-legend-item${isActive ? ' fm-legend-active' : ''}`}
+              style={{ opacity: isActive ? 1 : 0.35 }}
+            >
+              <div
+                className="fm-legend-dot"
+                style={{
+                  background: fmColor(mode),
+                  boxShadow: isActive ? `0 0 6px ${fmColor(mode)}` : 'none',
+                }}
+              />
+              <span style={{ color: isActive ? fmColor(mode) : 'var(--text3)', fontWeight: isActive ? 700 : 400 }}>
+                {mode}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

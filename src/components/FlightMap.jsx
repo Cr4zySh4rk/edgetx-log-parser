@@ -29,6 +29,18 @@ function BoundsFitter({ bounds }) {
   return null
 }
 
+function MapResizer() {
+  const map = useMap()
+  useEffect(() => {
+    // Leaflet loses track of container size in flexbox — force recalc
+    const t = setTimeout(() => map.invalidateSize(), 50)
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(map.getContainer())
+    return () => { clearTimeout(t); ro.disconnect() }
+  }, [map])
+  return null
+}
+
 export default function FlightMap({ rows, cursorIndex }) {
   const gpsRows = useMemo(() => rows.filter(r => r._lat !== null), [rows])
 
@@ -83,6 +95,7 @@ export default function FlightMap({ rows, cursorIndex }) {
         maxZoom={19}
       />
       {bounds.length >= 2 && <BoundsFitter bounds={bounds} />}
+      <MapResizer />
 
       {segments.map((seg, i) => (
         <Polyline

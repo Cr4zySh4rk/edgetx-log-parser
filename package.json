@@ -1,26 +1,65 @@
 {
-  "name": "edgetx-viewer",
+  "name": "edgetx-log-parser",
   "version": "1.0.0",
-  "description": "EdgeTX flight log visualizer",
+  "description": "EdgeTX flight log visualizer for RC aircraft",
   "main": "electron/main.js",
+  "author": "narenana",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.narenana.edgetx-log-parser",
+    "productName": "EdgeTX Log Parser",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
+    "cesium": "^1.140.0",
     "chart.js": "^4.4.2",
     "leaflet": "^1.9.4",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3.1",
-    "react-leaflet": "^4.2.1"
+    "react-leaflet": "^4.2.1",
+    "three": "^0.184.0",
+    "vite-plugin-cesium": "^1.2.23"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^8.2.2",
     "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-reload": "^2.0.0-alpha.1",
     "vite": "^5.4.0",
     "wait-on": "^8.0.0"
   }

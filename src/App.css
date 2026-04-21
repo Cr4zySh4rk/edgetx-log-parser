@@ -131,6 +131,41 @@ body {
 }
 .drop-btn:hover { opacity: 0.85; }
 
+/* ── View mode toggle ── */
+.view-toggle-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.view-toggle-label {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+.view-toggle-btn {
+  padding: 3px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text3);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.view-toggle-btn:hover { color: var(--text2); }
+.view-toggle-btn.active {
+  background: var(--bg);
+  border-color: var(--blue);
+  color: var(--blue);
+  font-weight: 600;
+}
+
 /* ── Dashboard layout ── */
 .dashboard {
   flex: 1;
@@ -148,8 +183,8 @@ body {
 }
 
 .dashboard-left {
-  width: 400px;
-  flex: none;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -159,6 +194,66 @@ body {
 .map-wrap {
   flex: 1;
   min-height: 0;
+}
+
+.globe-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.no-gps-msg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+/* ── Cesium globe HUD ── */
+.globe-hud {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  line-height: 1.8;
+  color: var(--text2);
+  pointer-events: none;
+  text-shadow: 0 0 6px #000, 0 0 12px #000;
+  background: rgba(8, 15, 26, 0.55);
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(65, 72, 104, 0.4);
+}
+.globe-hud small {
+  font-size: 9px;
+  color: var(--text3);
+}
+
+/* Auto/Manual camera toggle */
+.globe-auto-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 11px;
+  background: rgba(22, 33, 62, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.15s;
+}
+.globe-auto-btn:hover { color: var(--text); border-color: var(--text3); }
+.globe-auto-btn.active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(125, 207, 255, 0.08);
 }
 
 .dashboard-right {
@@ -261,6 +356,9 @@ body {
   height: 8px;
   border-radius: 2px;
 }
+.fm-legend-active {
+  transition: opacity 0.15s;
+}
 
 /* ── Timeline scrubber ── */
 .timeline-scrubber {
@@ -319,6 +417,114 @@ body {
 }
 .speed-btn:hover { color: var(--text); }
 .speed-btn.active { background: var(--bg); border-color: var(--blue); color: var(--blue); }
+
+/* ── Altitude/Attitude 3D view ── */
+.attitude-view {
+  flex: none;
+  height: 220px;
+  position: relative;
+  border-top: 1px solid var(--border);
+  background: #080f1a;
+  overflow: hidden;
+}
+
+.attitude-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.attitude-label {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text3);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* HUD overlay */
+.attitude-hud {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  line-height: 1.7;
+  color: var(--text2);
+  pointer-events: none;
+  text-shadow: 0 0 6px #000, 0 0 12px #000;
+}
+.attitude-hud small {
+  font-size: 9px;
+  color: var(--text3);
+}
+
+/* Altitude ruler */
+.alt-ruler {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 52px;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ruler-tick {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateY(-50%);
+}
+
+.ruler-val {
+  font-size: 9px;
+  color: var(--text3);
+  font-family: 'Consolas', monospace;
+  text-align: right;
+  min-width: 24px;
+  text-shadow: 0 0 4px #000;
+}
+
+.ruler-line {
+  display: inline-block;
+  width: 6px;
+  height: 1px;
+  background: var(--border);
+}
+
+.ruler-tick-active .ruler-val { color: var(--text2); }
+.ruler-tick-active .ruler-line { background: var(--text2); width: 10px; }
+
+.ruler-cursor {
+  position: absolute;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  transform: translateY(-50%);
+}
+
+.ruler-cursor-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--green);
+  font-family: 'Consolas', monospace;
+  text-shadow: 0 0 6px #000;
+  background: rgba(8,15,26,0.7);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.ruler-cursor-arrow {
+  font-size: 8px;
+  color: var(--green);
+}
 
 /* ── Flight event markers ── */
 .fm-events-row {

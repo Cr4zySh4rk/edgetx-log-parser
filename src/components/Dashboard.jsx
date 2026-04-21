@@ -3,8 +3,10 @@ import FlightMap from './FlightMap'
 import SyncedChart from './SyncedChart'
 import FlightModeBar from './FlightModeBar'
 import StatsPanel from './StatsPanel'
+import AltitudeAttitudeView from './AltitudeAttitudeView'
+import GlobeView from './GlobeView'
 
-const SPEEDS = [1, 2, 5, 10, 30, 60]
+const SPEEDS = [0.1, 0.5, 1, 2, 5, 10, 30, 60]
 
 function ds(label, data, color, extra = {}) {
   return {
@@ -22,10 +24,12 @@ function ds(label, data, color, extra = {}) {
 }
 
 export default function Dashboard({ log }) {
+  const [viewMode, setViewMode] = useState(2) // 1 = classic, 2 = 3D globe
   const [cursorIndex, setCursorIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
   const speedRef = useRef(speed)
+  const virtualTimeRef = useRef(0)
   useEffect(() => { speedRef.current = speed }, [speed])
 
   const { rows, events } = log
@@ -34,21 +38,21 @@ export default function Dashboard({ log }) {
   useEffect(() => {
     if (!playing) return
 
+    // Seed virtual time from the cursor's current position
+    virtualTimeRef.current = rows[cursorIndex]?._tSec ?? 0
     let lastReal = performance.now()
 
     const id = setInterval(() => {
       const now = performance.now()
-      const flightDelta = ((now - lastReal) / 1000) * speedRef.current
+      virtualTimeRef.current += ((now - lastReal) / 1000) * speedRef.current
       lastReal = now
+      const vt = virtualTimeRef.current
 
       setCursorIndex(prev => {
-        if (prev >= rows.length - 1) {
-          setPlaying(false)
-          return prev
-        }
-        const targetSec = rows[prev]._tSec + flightDelta
-        let next = prev + 1
-        while (next < rows.length - 1 && rows[next]._tSec < targetSec) next++
+        if (prev >= rows.length - 1) { setPlaying(false); return prev }
+        // Advance as many rows as virtual time has passed — but never go back
+        let next = prev
+        while (next < rows.length - 1 && rows[next + 1]._tSec <= vt) next++
         return next
       })
     }, 33)
@@ -68,11 +72,15 @@ export default function Dashboard({ log }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Move cursor + keep virtualTime in sync for smooth interpolation
   const handleCursor = useCallback(
     idx => {
-      if (idx >= 0 && idx < rows.length) setCursorIndex(idx)
+      if (idx >= 0 && idx < rows.length) {
+        setCursorIndex(idx)
+        virtualTimeRef.current = rows[idx]._tSec
+      }
     },
-    [rows.length]
+    [rows]
   )
 
   // ── Chart data ──────────────────────────────────────────────────────────────
@@ -138,17 +146,49 @@ export default function Dashboard({ log }) {
 
   return (
     <div className="dashboard">
+      {/* View mode toggle */}
+      <div className="view-toggle-bar">
+        <span className="view-toggle-label">View</span>
+        <button
+          className={`view-toggle-btn${viewMode === 1 ? ' active' : ''}`}
+          onClick={() => setViewMode(1)}
+          title="2D map + attitude panel"
+        >
+          ① Classic
+        </button>
+        <button
+          className={`view-toggle-btn${viewMode === 2 ? ' active' : ''}`}
+          onClick={() => setViewMode(2)}
+          title="3D globe with satellite imagery"
+        >
+          ② 3D Globe
+        </button>
+      </div>
+
       <div className="dashboard-main">
         <div className="dashboard-left">
-          <div className="map-wrap">
-            {log.hasGPS ? (
-              <FlightMap rows={rows} cursorIndex={cursorIndex} />
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', fontSize: 13 }}>
-                No GPS data
+          {viewMode === 2 ? (
+            /* ── 3D Globe view ── */
+            log.hasGPS ? (
+              <div className="globe-wrap">
+                <GlobeView key={log.filename} rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
               </div>
-            )}
-          </div>
+            ) : (
+              <div className="no-gps-msg">No GPS data</div>
+            )
+          ) : (
+            /* ── Classic: 2D map + attitude ── */
+            <>
+              <div className="map-wrap">
+                {log.hasGPS ? (
+                  <FlightMap rows={rows} cursorIndex={cursorIndex} />
+                ) : (
+                  <div className="no-gps-msg">No GPS data</div>
+                )}
+              </div>
+              <AltitudeAttitudeView rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+            </>
+          )}
           <StatsPanel log={log} cursorRow={cursorRow} />
         </div>
 
@@ -202,7 +242,12 @@ export default function Dashboard({ log }) {
           min={0}
           max={rows.length - 1}
           value={cursorIndex}
-          onChange={e => { setCursorIndex(Number(e.target.value)); setPlaying(false) }}
+          onChange={e => {
+            const idx = Number(e.target.value)
+            setCursorIndex(idx)
+            virtualTimeRef.current = rows[idx]._tSec
+            setPlaying(false)
+          }}
         />
       </div>
     </div>
