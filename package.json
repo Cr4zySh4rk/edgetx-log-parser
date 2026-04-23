@@ -1,6 +1,6 @@
 {
   "name": "edgetx-log-parser",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "EdgeTX flight log visualizer for RC aircraft",
   "main": "electron/main.js",
   "author": "narenana",
@@ -23,19 +23,22 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ]
+    },
+    "linux": {
+      "target": [
+        { "target": "tar.gz", "arch": ["x64"] }
+      ],
+      "category": "Utility"
+    },
+    "mac": {
+      "target": [
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.utilities",
+      "identity": null
     },
     "nsis": {
       "oneClick": false,

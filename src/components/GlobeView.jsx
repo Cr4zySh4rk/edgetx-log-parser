@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo, useState } from 'react'
 import * as Cesium from 'cesium'
+import * as THREE from 'three'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import { interpRows } from '../utils/interpRows'
 
@@ -13,130 +14,32 @@ const FM_COLORS = {
 }
 function fmColor(m) { return FM_COLORS[m] || '#7aa2f7' }
 
-function buildPlaneCanvas() {
-  const S = 96
-  const c = document.createElement('canvas')
-  c.width = S; c.height = S
-  const g = c.getContext('2d')
-  const cx = S / 2, cy = S / 2
-
-  // ── Drop shadow pass ─────────────────────────────────────────────────────
-  g.save()
-  g.shadowColor = 'rgba(0,0,0,0.55)'
-  g.shadowBlur  = 7
-  g.shadowOffsetX = 1.5; g.shadowOffsetY = 3
-
-  // Main wings (swept, tapered)
-  g.beginPath()
-  g.moveTo(cx,     cy - 12)
-  g.lineTo(cx - 44, cy + 10)
-  g.lineTo(cx - 40, cy + 16)
-  g.lineTo(cx,     cy + 4)
-  g.lineTo(cx + 40, cy + 16)
-  g.lineTo(cx + 44, cy + 10)
-  g.closePath()
-  g.fillStyle = '#8a8fa8'; g.fill()
-
-  // Fuselage
-  g.beginPath()
-  g.ellipse(cx, cy, 7, 40, 0, 0, Math.PI * 2)
-  g.fillStyle = '#9094aa'; g.fill()
-  g.restore()
-
-  // ── Wings with gradient ───────────────────────────────────────────────────
-  g.beginPath()
-  g.moveTo(cx,     cy - 12)
-  g.lineTo(cx - 44, cy + 10)
-  g.lineTo(cx - 40, cy + 16)
-  g.lineTo(cx,     cy + 4)
-  g.lineTo(cx + 40, cy + 16)
-  g.lineTo(cx + 44, cy + 10)
-  g.closePath()
-  const wGrad = g.createLinearGradient(cx - 44, 0, cx + 44, 0)
-  wGrad.addColorStop(0,    '#5a6080')
-  wGrad.addColorStop(0.28, '#a8adc0')
-  wGrad.addColorStop(0.5,  '#d0d4e4')
-  wGrad.addColorStop(0.72, '#a8adc0')
-  wGrad.addColorStop(1,    '#5a6080')
-  g.fillStyle = wGrad; g.fill()
-
-  // Wing leading-edge highlight
-  g.beginPath()
-  g.moveTo(cx,     cy - 12)
-  g.lineTo(cx - 44, cy + 10)
-  g.lineTo(cx - 42, cy + 8)
-  g.lineTo(cx,     cy - 14)
-  g.lineTo(cx + 42, cy + 8)
-  g.lineTo(cx + 44, cy + 10)
-  g.closePath()
-  g.fillStyle = 'rgba(255,255,255,0.14)'; g.fill()
-
-  // ── Fuselage with radial gradient ────────────────────────────────────────
-  g.beginPath()
-  g.ellipse(cx, cy, 7, 40, 0, 0, Math.PI * 2)
-  const fGrad = g.createRadialGradient(cx - 2, cy - 10, 1, cx, cy, 14)
-  fGrad.addColorStop(0,   '#eceef8')
-  fGrad.addColorStop(0.6, '#b0b4c8')
-  fGrad.addColorStop(1,   '#70748a')
-  g.fillStyle = fGrad; g.fill()
-
-  // Fuselage spine line
-  g.beginPath()
-  g.moveTo(cx, cy - 38); g.lineTo(cx, cy + 38)
-  g.strokeStyle = 'rgba(255,255,255,0.2)'; g.lineWidth = 1; g.stroke()
-
-  // ── Nose cone ────────────────────────────────────────────────────────────
-  g.beginPath()
-  g.ellipse(cx, cy - 41, 4.5, 7, 0, 0, Math.PI * 2)
-  const nGrad = g.createRadialGradient(cx - 1, cy - 43, 1, cx, cy - 41, 6)
-  nGrad.addColorStop(0, '#f0f2ff'); nGrad.addColorStop(1, '#8084a0')
-  g.fillStyle = nGrad; g.fill()
-
-  // ── Horizontal stabiliser ────────────────────────────────────────────────
-  g.beginPath()
-  g.moveTo(cx,     cy + 28)
-  g.lineTo(cx - 22, cy + 40)
-  g.lineTo(cx - 19, cy + 44)
-  g.lineTo(cx,     cy + 34)
-  g.lineTo(cx + 19, cy + 44)
-  g.lineTo(cx + 22, cy + 40)
-  g.closePath()
-  const sGrad = g.createLinearGradient(cx - 22, 0, cx + 22, 0)
-  sGrad.addColorStop(0, '#5a6080'); sGrad.addColorStop(0.5, '#9094a8'); sGrad.addColorStop(1, '#5a6080')
-  g.fillStyle = sGrad; g.fill()
-
-  // ── Vertical stabiliser ──────────────────────────────────────────────────
-  g.beginPath()
-  g.roundRect(cx - 2.5, cy + 26, 5, 14, 2)
-  g.fillStyle = '#7c8098'; g.fill()
-
-  // ── Cockpit ──────────────────────────────────────────────────────────────
-  g.beginPath()
-  g.ellipse(cx, cy - 22, 3.5, 6, 0, 0, Math.PI * 2)
-  const cGrad = g.createRadialGradient(cx - 1, cy - 24, 1, cx, cy - 22, 5)
-  cGrad.addColorStop(0, 'rgba(160,210,255,0.9)')
-  cGrad.addColorStop(1, 'rgba(40,80,140,0.7)')
-  g.fillStyle = cGrad; g.fill()
-  g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 0.8; g.stroke()
-
-  // ── Nav lights ───────────────────────────────────────────────────────────
-  g.beginPath(); g.arc(cx - 44, cy + 10, 3, 0, Math.PI * 2)
-  g.fillStyle = '#ff3333'; g.fill()
-  g.beginPath(); g.arc(cx + 44, cy + 10, 3, 0, Math.PI * 2)
-  g.fillStyle = '#33ee55'; g.fill()
-
-  // Light glow
-  const drawGlow = (x, y, col) => {
-    g.save(); g.globalAlpha = 0.35
-    g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2)
-    const gl = g.createRadialGradient(x, y, 0, x, y, 6)
-    gl.addColorStop(0, col); gl.addColorStop(1, 'transparent')
-    g.fillStyle = gl; g.fill(); g.restore()
+// Catmull-Rom smooth a Cartesian3[] array
+function catmullRomSmooth(pts, steps = 8) {
+  if (pts.length < 2) return pts
+  const out = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    for (let j = 0; j < steps; j++) {
+      const t = j / steps, t2 = t * t, t3 = t2 * t
+      const cr = (a, b, c, d) => 0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3)
+      out.push(new Cesium.Cartesian3(cr(p0.x,p1.x,p2.x,p3.x), cr(p0.y,p1.y,p2.y,p3.y), cr(p0.z,p1.z,p2.z,p3.z)))
+    }
   }
-  drawGlow(cx - 44, cy + 10, '#ff3333')
-  drawGlow(cx + 44, cy + 10, '#33ee55')
+  out.push(pts[pts.length - 1])
+  return out
+}
 
-  return c
+// Bearing (°) between two GPS points
+const D2R = Math.PI / 180
+function gpsBearing(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1*D2R, φ2 = lat2*D2R, dλ = (lon2-lon1)*D2R
+  const y = Math.sin(dλ)*Math.cos(φ2)
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(dλ)
+  return (Math.atan2(y,x)/D2R + 360) % 360
 }
 
 function updateHud(el, r) {
@@ -157,27 +60,119 @@ function updateHud(el, r) {
   ].join('<br/>')
 }
 
-// Lerp a heading angle correctly through the shortest arc
 function lerpHdg(from, to, t) {
   let diff = ((to - from + 540) % 360) - 180
   return from + diff * t
 }
 
+// ── Build Three.js aircraft scene for GLB export ───────────────────────────────
+// Nose along -Z (glTF/Cesium "forward"), up +Y, wings span X
+// At Cesium HPR(0,0,0), glTF -Z maps to North, so nose points North → heading is straight compass
+function buildAircraftScene() {
+  const scene = new THREE.Scene()
+  const mat = (hex, rough = 0.55, metal = 0.25) =>
+    new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: metal })
+
+  const matBody  = mat(0xcdd1e4)
+  const matWing  = mat(0xb4b8cc, 0.6, 0.15)
+  const matDark  = mat(0x353b55, 0.7, 0.1)
+  const matGlass = mat(0x4a6e99, 0.05, 0.6)
+  const matRed   = mat(0xff3333, 0.3, 0.1)
+  const matGrn   = mat(0x33ff77, 0.3, 0.1)
+
+  const g = new THREE.Group()
+
+  // Fuselage cylinder along Z axis (forward = -Z)
+  const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.33, 5.0, 12), matBody)
+  fuse.rotation.x = Math.PI / 2
+  g.add(fuse)
+
+  // Nose cone at -Z
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.28, 1.5, 12), matBody)
+  nose.rotation.x = -Math.PI / 2
+  nose.position.z = -3.25
+  g.add(nose)
+
+  // Tail cone at +Z
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.75, 10), matDark)
+  tail.rotation.x = Math.PI / 2
+  tail.position.z = 2.9
+  g.add(tail)
+
+  // Cockpit canopy (on top, forward of centre)
+  const canopy = new THREE.Mesh(
+    new THREE.SphereGeometry(0.24, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    matGlass
+  )
+  canopy.position.set(0, 0.26, -1.0)
+  g.add(canopy)
+
+  // Wings spanning X axis
+  const addWing = (side) => {
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 2.1), matWing)
+    inner.position.set(side * 1.1, 0.06, -0.2)
+    inner.rotation.z = -side * 0.05
+    g.add(inner)
+
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.10, 1.7), matWing)
+    outer.position.set(side * 3.2, 0.15, -0.4)
+    outer.rotation.z = -side * 0.10
+    g.add(outer)
+
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.44, 0.8), matWing)
+    tip.position.set(side * 4.8, 0.34, -0.4)
+    g.add(tip)
+
+    const nav = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 5), side < 0 ? matRed : matGrn)
+    nav.position.set(side * 4.85, 0.30, -0.4)
+    g.add(nav)
+  }
+  addWing(-1)
+  addWing(+1)
+
+  // Horizontal stabilisers (span X, at tail)
+  const hStab = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.09, 0.85), matWing)
+  hStab.position.set(0, 0.09, 2.6)
+  g.add(hStab)
+
+  // Vertical stabiliser (at tail)
+  const vStab = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.0, 0.85), matWing)
+  vStab.position.set(0, 0.56, 2.6)
+  g.add(vStab)
+
+  scene.add(g)
+  return scene
+}
+
+// Export scene to GLB blob URL (async)
+async function buildAircraftGLB() {
+  const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
+  const scene = buildAircraftScene()
+  return new Promise((resolve, reject) => {
+    new GLTFExporter().parse(
+      scene,
+      (buf) => resolve(URL.createObjectURL(new Blob([buf], { type: 'model/gltf-binary' }))),
+      reject,
+      { binary: true }
+    )
+  })
+}
+
 export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
   const containerRef  = useRef(null)
-  const stateRef      = useRef(null)   // { viewer, smooth: {pos, hdg, dist} }
-  const curRowRef     = useRef(null)   // latest interpolated row (updated in preRender)
+  const stateRef      = useRef(null)
+  const curRowRef     = useRef(null)
+  const trajHdgRef    = useRef(0)
+  const trajPitchRef  = useRef(0)
   const autoRef       = useRef(true)
   const hudRef        = useRef(null)
-  const hudTimerRef   = useRef(null)
+  const glbUrlRef     = useRef(null)
   const [autoMode, setAutoMode] = useState(true)
 
   const gpsRows = useMemo(() => rows.filter(r => r._lat != null && r._lon != null), [rows])
 
-  // ── Build scene once ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || gpsRows.length < 2) return
-
 
     const viewer = new Cesium.Viewer(containerRef.current, {
       geocoder: false, homeButton: false, sceneModePicker: false,
@@ -186,11 +181,9 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
       selectionIndicator: false, infoBox: false,
     })
 
-    // Hide credits
     const cc = viewer.cesiumWidget?.creditContainer
     if (cc) cc.style.display = 'none'
 
-    // Satellite imagery — ArcGIS (no key), fallback to OSM
     viewer.imageryLayers.removeAll()
     Cesium.ArcGisMapServerImageryProvider
       .fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer')
@@ -200,13 +193,13 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
           .then(p => viewer.imageryLayers.addImageryProvider(p))
       )
 
-    // ── FM-coloured path segments ────────────────────────────────────────────
+    // FM-coloured flight path
     let prevFM = null, segPts = []
     const flush = () => {
       if (segPts.length < 2) return
       viewer.entities.add({
         polyline: {
-          positions: segPts.slice(), clampToGround: false, width: 3,
+          positions: catmullRomSmooth(segPts.slice()), clampToGround: false, width: 3,
           material: new Cesium.PolylineGlowMaterialProperty({
             glowPower: 0.25,
             color: Cesium.Color.fromCssColorString(fmColor(prevFM)),
@@ -222,7 +215,6 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
     }
     flush()
 
-    // Start / end dots
     const addDot = (r, color) => viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(r._lon, r._lat, Math.max(0, r['Alt(m)'] || 0)),
       point: { pixelSize: 9, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Infinity },
@@ -230,27 +222,42 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
     addDot(gpsRows[0], '#9ece6a')
     addDot(gpsRows[gpsRows.length - 1], '#f7768e')
 
-    // ── Aircraft billboard — canvas-rendered model ───────────────────────────
-    const planeCanvas = buildPlaneCanvas()
+    // ── 3D aircraft model (async GLB build) ───────────────────────────────────
+    let cancelled = false
+    let aircraftEntity = null
+    buildAircraftGLB().then(url => {
+      if (cancelled) { URL.revokeObjectURL(url); return }
+      glbUrlRef.current = url
 
-    viewer.entities.add({
-      position: new Cesium.CallbackProperty(() => {
-        const r = curRowRef.current
-        if (!r || r._lat == null) return Cesium.Cartesian3.fromDegrees(gpsRows[0]._lon, gpsRows[0]._lat, 0)
-        return Cesium.Cartesian3.fromDegrees(r._lon, r._lat, Math.max(0, r['Alt(m)'] || 0))
-      }, false),
-      billboard: {
-        image: planeCanvas,
-        width: 56, height: 56,
-        verticalOrigin: Cesium.VerticalOrigin.CENTER,
-        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-        rotation: new Cesium.CallbackProperty(
-          () => -Cesium.Math.toRadians(curRowRef.current?.['Hdg(°)'] || 0), false
-        ),
-        alignedAxis: Cesium.Cartesian3.UNIT_Z,
-        disableDepthTestDistance: Infinity,
-      },
-    })
+      aircraftEntity = viewer.entities.add({
+        position: new Cesium.CallbackProperty(() => {
+          const r = curRowRef.current
+          if (!r || r._lat == null) return Cesium.Cartesian3.fromDegrees(gpsRows[0]._lon, gpsRows[0]._lat, 0)
+          return Cesium.Cartesian3.fromDegrees(r._lon, r._lat, Math.max(0, r['Alt(m)'] || 0))
+        }, false),
+        orientation: new Cesium.CallbackProperty(() => {
+          const r = curRowRef.current
+          const pos = r?._lat != null
+            ? Cesium.Cartesian3.fromDegrees(r._lon, r._lat, Math.max(0, r['Alt(m)'] || 0))
+            : Cesium.Cartesian3.fromDegrees(gpsRows[0]._lon, gpsRows[0]._lat, 0)
+
+          // Cesium glTF 2.0: forwardAxis=+Z → mapped to East at HPR=0.
+          // Our nose is at -Z, so at HPR=0 nose points West.
+          // HPR heading CW from North: West→North needs +π/2 offset.
+          const hpr = new Cesium.HeadingPitchRoll(
+            trajHdgRef.current * D2R + Math.PI / 2,
+            trajPitchRef.current * D2R,
+            -(r?._rollDeg ?? 0) * D2R
+          )
+          return Cesium.Transforms.headingPitchRollQuaternion(pos, hpr)
+        }, false),
+        model: {
+          uri: url,
+          minimumPixelSize: 48,
+          maximumScale: 8000,
+        },
+      })
+    }).catch(err => console.error('aircraft GLB build failed:', err))
 
     // Altitude stem
     viewer.entities.add({
@@ -271,59 +278,74 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
       },
     })
 
-    // ── Per-frame: interpolate row + smooth camera ───────────────────────────
+    // ── Per-frame: trajectory heading + pitch + camera ────────────────────────
     const smooth = { pos: null, hdg: 0, dist: 500 }
     let lastHudUpdate = 0
 
     viewer.scene.preRender.addEventListener(() => {
-      // Always interpolate current row for aircraft billboard/stem
       const vt = virtualTimeRef?.current ?? rows[0]._tSec
       const r  = interpRows(rows, vt)
       if (!r || r._lat == null) return
       curRowRef.current = r
 
-      // Throttle HUD updates to ~10fps
-      const now = performance.now()
-      if (now - lastHudUpdate > 100) {
-        lastHudUpdate = now
-        const hud = hudRef.current
-        if (hud) updateHud(hud, r)
+      // GPS index
+      let gi = 0
+      for (let i = 0; i < gpsRows.length - 1; i++) { if (gpsRows[i]._tSec <= vt) gi = i; else break }
+
+      // Smoothed compass bearing from wide GPS window
+      const g1 = gpsRows[Math.max(0, gi - 3)], g2 = gpsRows[Math.min(gpsRows.length - 1, gi + 5)]
+      if (g1 !== g2) {
+        const newHdg = gpsBearing(g1._lat, g1._lon, g2._lat, g2._lon)
+        const diff = ((newHdg - trajHdgRef.current + 540) % 360) - 180
+        trajHdgRef.current = (trajHdgRef.current + diff * 0.03 + 360) % 360
       }
+
+      // Smoothed trajectory pitch from altitude change over horizontal distance
+      const gp1 = gpsRows[Math.max(0, gi - 3)], gp2 = gpsRows[Math.min(gpsRows.length - 1, gi + 5)]
+      if (gp1 !== gp2 && gp1['Alt(m)'] != null && gp2['Alt(m)'] != null) {
+        const φ1 = gp1._lat * D2R, φ2 = gp2._lat * D2R
+        const dφ = φ2 - φ1, dλ = (gp2._lon - gp1._lon) * D2R
+        const a = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2
+        const hd = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        if (hd > 1) {
+          const newPitch = Math.atan2((gp2['Alt(m)'] ?? 0) - (gp1['Alt(m)'] ?? 0), hd) / D2R
+          trajPitchRef.current += (newPitch - trajPitchRef.current) * 0.05
+        }
+      }
+
+      const now = performance.now()
+      if (now - lastHudUpdate > 100) { lastHudUpdate = now; updateHud(hudRef.current, r) }
 
       if (!autoRef.current) return
 
       const alt    = Math.max(0, r['Alt(m)'] || 0)
       const spdMs  = (r['GSpd(kmh)'] || 0) / 3.6
       const target = Cesium.Cartesian3.fromDegrees(r._lon, r._lat, alt)
-      const hdg    = r['Hdg(°)'] || 0
-
-      // Dynamic distance: base 150m + 10m per m/s + 3m per metre altitude
-      const targetDist = Math.max(150, Math.min(2000, spdMs * 10 + alt * 3 + 150))
+      const targetHdg  = trajHdgRef.current
+      const targetDist = Math.max(150, Math.min(600, spdMs * 5 + alt * 1.5 + 150))
 
       if (!smooth.pos) {
         smooth.pos  = target.clone()
-        smooth.hdg  = hdg
-        smooth.dist = targetDist
+        smooth.hdg  = targetHdg
+        const camDist = Cesium.Cartesian3.distance(viewer.camera.position, smooth.pos)
+        smooth.dist = Math.max(150, Math.min(600, camDist))
       } else {
-        // Position tracks fairly closely so the aircraft marker stays accurate
         Cesium.Cartesian3.lerp(smooth.pos, target, 0.05, smooth.pos)
-        // Heading rotates very slowly — camera lags 2-4s behind turns (intentional)
-        smooth.hdg  = lerpHdg(smooth.hdg, hdg, 0.012)
-        // Zoom eases in even more gently so it never lurches
-        smooth.dist += (targetDist - smooth.dist) * 0.02
+        smooth.hdg  = lerpHdg(smooth.hdg, targetHdg, 0.012)
+        smooth.dist += (targetDist - smooth.dist) * 0.008
       }
 
       viewer.camera.lookAt(
         smooth.pos,
         new Cesium.HeadingPitchRange(
           Cesium.Math.toRadians(smooth.hdg + 180),
-          Cesium.Math.toRadians(-38),
+          Cesium.Math.toRadians(-18),
           smooth.dist,
         )
       )
     })
 
-    // Initial fly-to overview
+    // Initial fly-to
     const lons = gpsRows.map(r => r._lon), lats = gpsRows.map(r => r._lat)
     const pad = 0.008
     viewer.camera.flyTo({
@@ -334,21 +356,40 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-50), roll: 0 },
       duration: 2,
       complete: () => {
-        // Enable auto-follow after initial fly-in
+        const r0 = gpsRows[0]
+        const anchor = Cesium.Cartesian3.fromDegrees(r0._lon, r0._lat, Math.max(0, r0['Alt(m)'] || 0))
+        smooth.dist = Math.min(600, Cesium.Cartesian3.distance(viewer.camera.position, anchor))
         smooth.pos = null
       },
     })
 
-    stateRef.current = { viewer, smooth }
+    // Mouse/scroll → manual mode: camera still follows aircraft but user orbits/zooms freely.
+    // We use Cesium.trackedEntity which keeps the camera locked onto the moving aircraft
+    // while letting the ScreenSpaceCameraController handle all mouse rotation/zoom/tilt.
+    const releaseAuto = () => {
+      if (!autoRef.current) return
+      autoRef.current = false
+      setAutoMode(false)
+      viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
+      if (aircraftEntity) { viewer.trackedEntity = aircraftEntity; viewer.camera.constrainedAxis = undefined }
+    }
+    const el = containerRef.current
+    el.addEventListener('mousedown', releaseAuto)
+    el.addEventListener('wheel', releaseAuto)
+
+    stateRef.current = { viewer, smooth, getAircraftEntity: () => aircraftEntity }
     curRowRef.current = gpsRows[0]
 
     return () => {
+      cancelled = true
+      el.removeEventListener('mousedown', releaseAuto)
+      el.removeEventListener('wheel', releaseAuto)
       stateRef.current = null
+      if (glbUrlRef.current) { URL.revokeObjectURL(glbUrlRef.current); glbUrlRef.current = null }
       try { viewer.destroy() } catch (_) {}
     }
   }, [gpsRows])
 
-  // ── Toggle auto / manual ───────────────────────────────────────────────────
   const toggleAuto = () => {
     const next = !autoMode
     setAutoMode(next)
@@ -356,15 +397,61 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
     const s = stateRef.current
     if (!s) return
     if (!next) {
-      // Release camera lock so user can pan freely
       s.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
+      const ac = s.getAircraftEntity?.()
+      if (ac) { s.viewer.trackedEntity = ac; s.viewer.camera.constrainedAxis = undefined }
     } else {
-      // Snap smooth position to current row on next preRender tick
+      // Back to auto: release trackedEntity so our custom lookAt drives the camera
+      s.viewer.trackedEntity = undefined
       s.smooth.pos = null
     }
   }
 
-  // HUD is now driven by the preRender loop — no useEffect needed here
+  // ── Nav widget: ensure manual mode then step-drive the camera ───────────────
+  const ensureManual = () => {
+    const s = stateRef.current
+    if (!s) return null
+    if (autoRef.current) {
+      autoRef.current = false
+      setAutoMode(false)
+      s.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
+      const ac = s.getAircraftEntity?.()
+      if (ac) { s.viewer.trackedEntity = ac; s.viewer.camera.constrainedAxis = undefined }
+    }
+    return s.viewer
+  }
+  const navHeld = (fn) => {
+    // press-and-hold: fire repeatedly while mouse is down
+    let raf = null
+    const tick = () => {
+      const v = ensureManual()
+      if (v) fn(v.camera)
+      raf = requestAnimationFrame(tick)
+    }
+    const onDown = (e) => { e.preventDefault(); tick() }
+    const onUp = () => { if (raf) cancelAnimationFrame(raf); raf = null }
+    return {
+      onMouseDown: onDown,
+      onMouseUp: onUp,
+      onMouseLeave: onUp,
+      onTouchStart: onDown,
+      onTouchEnd: onUp,
+    }
+  }
+
+  // Camera actions — small per-frame increments so hold-to-spin feels smooth
+  const ROT = 0.02  // rad per frame for rotate/tilt
+  const ZOOM = 8    // meters per frame for zoom
+  const PITCH_MIN = -Math.PI / 2 + 0.08  // avoid straight-down lock
+  const PITCH_MAX =  Math.PI / 2 - 0.08  // avoid straight-up lock
+  const rotLeft  = (c) => c.rotateLeft(ROT)
+  const rotRight = (c) => c.rotateRight(ROT)
+  // rotateUp(+) tilts camera up relative to surface → pitch increases toward 0/above horizon.
+  // Guard so repeated hold doesn't pin us at the pole.
+  const tiltUp   = (c) => { if (c.pitch < PITCH_MAX) c.rotateUp(ROT) }
+  const tiltDown = (c) => { if (c.pitch > PITCH_MIN) c.rotateDown(ROT) }
+  const zoomIn   = (c) => c.zoomIn(ZOOM)
+  const zoomOut  = (c) => c.zoomOut(ZOOM)
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -377,6 +464,23 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
       >
         {autoMode ? '⊙ AUTO' : '✥ MANUAL'}
       </button>
+
+      {/* Google Earth-style nav widget: compass + tilt + zoom */}
+      <div className="globe-nav" onMouseDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
+        <div className="nav-compass" title="Rotate heading">
+          <button className="nav-btn nav-rot-l" {...navHeld(rotLeft)}  title="Rotate left">↺</button>
+          <div className="nav-compass-mark">N</div>
+          <button className="nav-btn nav-rot-r" {...navHeld(rotRight)} title="Rotate right">↻</button>
+        </div>
+        <div className="nav-tilt" title="Tilt camera">
+          <button className="nav-btn" {...navHeld(tiltUp)}   title="Tilt up">▲</button>
+          <button className="nav-btn" {...navHeld(tiltDown)} title="Tilt down">▼</button>
+        </div>
+        <div className="nav-zoom" title="Zoom">
+          <button className="nav-btn" {...navHeld(zoomIn)}  title="Zoom in">+</button>
+          <button className="nav-btn" {...navHeld(zoomOut)} title="Zoom out">−</button>
+        </div>
+      </div>
     </div>
   )
 }

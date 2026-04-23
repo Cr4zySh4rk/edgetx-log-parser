@@ -1,14 +1,8 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
 
-if (!app.isPackaged) {
-  require('electron-reload')(path.join(__dirname, '..'), {
-    electron: path.join(__dirname, '..', 'node_modules', '.bin', 'electron.cmd'),
-    forceHardReset: true,
-    hardResetMethod: 'exit',
-    ignored: /node_modules|dist|release/,
-  })
-}
+// electron-reload disabled (causes immediate exit when files were recently modified)
+// if (!app.isPackaged) { require('electron-reload')(...) }
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -23,6 +17,10 @@ function createWindow() {
     backgroundColor: '#1a1b26',
     title: 'EdgeTX Log Viewer',
   })
+
+  win.on('closed', () => console.log('Window closed'))
+  win.webContents.on('crashed', (e) => console.log('Renderer crashed:', e))
+  win.webContents.on('did-fail-load', (e, code, desc) => console.log('Load failed:', code, desc))
 
   if (!app.isPackaged) {
     win.loadURL('http://localhost:5173')

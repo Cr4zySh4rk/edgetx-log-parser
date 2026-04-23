@@ -1,135 +1,256 @@
 import { useEffect, useRef, useMemo } from 'react'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { interpRows } from '../utils/interpRows'
 
+const DEG2RAD = Math.PI / 180
+
+// Compute heading (°) from trajectory: bearing between GPS rows spanning vtSec
+function computeTrajHdg(gpsRows, vtSec) {
+  if (gpsRows.length < 2) return 0
+  let idx = 0
+  for (let i = 0; i < gpsRows.length - 1; i++) {
+    if (gpsRows[i]._tSec <= vtSec) idx = i; else break
+  }
+  const r1 = gpsRows[Math.max(0, idx - 3)]
+  const r2 = gpsRows[Math.min(gpsRows.length - 1, idx + 5)]
+  if (r1 === r2) return 0
+  const φ1 = r1._lat * DEG2RAD, λ1 = r1._lon * DEG2RAD
+  const φ2 = r2._lat * DEG2RAD, λ2 = r2._lon * DEG2RAD
+  const dλ = λ2 - λ1
+  const y = Math.sin(dλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ)
+  return (Math.atan2(y, x) / DEG2RAD + 360) % 360
+}
+
+// Compute pitch (°) from GPS trajectory: arctan(deltaAlt / horizDist)
+function computeTrajPitch(gpsRows, vtSec) {
+  if (gpsRows.length < 2) return 0
+  let idx = 0
+  for (let i = 0; i < gpsRows.length - 1; i++) {
+    if (gpsRows[i]._tSec <= vtSec) idx = i; else break
+  }
+  const r1 = gpsRows[Math.max(0, idx - 1)]
+  const r2 = gpsRows[Math.min(gpsRows.length - 1, idx + 2)]
+  if (r1 === r2) return 0
+  const φ1 = r1._lat * DEG2RAD, φ2 = r2._lat * DEG2RAD
+  const dφ = φ2 - φ1, dλ = (r2._lon - r1._lon) * DEG2RAD
+  const a = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2
+  const horizDist = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  if (horizDist < 1) return 0
+  const deltaAlt = (r2['Alt(m)'] ?? 0) - (r1['Alt(m)'] ?? 0)
+  return Math.atan2(deltaAlt, horizDist) / DEG2RAD
+}
+
+// ── Aircraft model ────────────────────────────────────────────────────────────
 function buildPlane() {
   const g = new THREE.Group()
-  g.rotation.order = 'YXZ'
+  g.rotation.order = 'YXZ'   // heading → pitch → roll
 
-  const mat = {
-    body: new THREE.MeshLambertMaterial({ color: 0xd4d8e8 }),
-    dark: new THREE.MeshLambertMaterial({ color: 0x4a5066 }),
-    nose: new THREE.MeshLambertMaterial({ color: 0xe8eaf0 }),
-    wing: new THREE.MeshLambertMaterial({ color: 0xc0c4d4 }),
-    red:  new THREE.MeshLambertMaterial({ color: 0xff4444 }),
-    green:new THREE.MeshLambertMaterial({ color: 0x44ff88 }),
-    prop: new THREE.MeshLambertMaterial({ color: 0x888899 }),
-  }
+  const matBody  = new THREE.MeshPhongMaterial({ color: 0xcdd1e4, shininess: 80,  specular: 0x4455aa })
+  const matDark  = new THREE.MeshPhongMaterial({ color: 0x353b55, shininess: 30 })
+  const matWing  = new THREE.MeshPhongMaterial({ color: 0xb4b8cc, shininess: 55,  specular: 0x334466 })
+  const matGlass = new THREE.MeshPhongMaterial({ color: 0x4a6e99, shininess: 200, specular: 0xaaddff,
+                                                  transparent: true, opacity: 0.72 })
+  const matRed   = new THREE.MeshPhongMaterial({ color: 0xff3333, shininess: 100 })
+  const matGreen = new THREE.MeshPhongMaterial({ color: 0x33ff77, shininess: 100 })
+  const matProp  = new THREE.MeshPhongMaterial({ color: 0x5a6a7a, shininess: 140 })
 
-  // fuselage — elongated along -Z (nose faces camera)
-  const fuse = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 4.8), mat.body)
+  const cast = mesh => { mesh.castShadow = true; return mesh }
+
+  // ── Fuselage — cylindrical cross-section, nose-forward along -Z
+  const fuse = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.29, 4.0, 14), matBody))
+  fuse.rotation.x = Math.PI / 2
   g.add(fuse)
 
-  // nose cone
-  const noseCone = new THREE.Mesh(new THREE.ConeGeometry(0.27, 1.0, 8), mat.nose)
-  noseCone.rotation.x = Math.PI / 2
-  noseCone.position.set(0, 0, -2.9)
-  g.add(noseCone)
+  // Nose cone
+  const nose = cast(new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.25, 14), matBody))
+  nose.rotation.x = Math.PI / 2
+  nose.position.z = -2.62
+  g.add(nose)
 
-  // tail taper (slightly narrower box)
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 1.2), mat.dark)
-  tail.position.set(0, 0, 2.5)
-  g.add(tail)
+  // Cockpit canopy (hemisphere bubble)
+  const canopy = cast(new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    matGlass
+  ))
+  canopy.position.set(0, 0.23, -0.65)
+  g.add(canopy)
 
-  // main wings
-  const wingGeo = new THREE.BoxGeometry(9.4, 0.12, 1.3)
-  const wings = new THREE.Mesh(wingGeo, mat.wing)
-  wings.position.set(0, 0.02, 0.2)
-  g.add(wings)
+  // Tail cone
+  const tailCone = cast(new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.65, 10), matDark))
+  tailCone.rotation.x = -Math.PI / 2
+  tailCone.position.z = 2.32
+  g.add(tailCone)
 
-  // wing sweep (leading edge detail via thin strip)
-  const sweepL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 1.4), mat.dark)
-  sweepL.position.set(-4.66, 0.02, 0.18)
-  g.add(sweepL)
-  const sweepR = sweepL.clone()
-  sweepR.position.x = 4.66
-  g.add(sweepR)
+  // ── Main wings — two halves with sweep and dihedral
+  // Each half is offset from centre, rotated for sweep + dihedral, inner box
+  const addWingHalf = (side) => {
+    const inner = cast(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.10, 1.40), matWing))
+    inner.position.set(side * 1.1, 0.05, 0.1)
+    inner.rotation.z = -side * 0.05    // dihedral
+    g.add(inner)
 
-  // horizontal stabiliser
-  const hStab = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.1, 0.75), mat.wing)
-  hStab.position.set(0, 0.08, 2.4)
-  g.add(hStab)
+    const outer = cast(new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 1.15), matWing))
+    outer.position.set(side * 3.1, 0.14, 0.28)
+    outer.rotation.y = side * 0.13     // sweep
+    outer.rotation.z = -side * 0.10   // dihedral continues
+    g.add(outer)
 
-  // vertical stabiliser
-  const vStab = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.8), mat.wing)
-  vStab.position.set(0, 0.5, 2.3)
+    // Wingtip
+    const tip = cast(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.7), matWing))
+    tip.position.set(side * 4.45, 0.33, 0.38)
+    g.add(tip)
+
+    // Nav light
+    const navMat = side < 0 ? matRed : matGreen
+    const nav = cast(new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), navMat))
+    nav.position.set(side * 4.5, 0.32, 0.38)
+    g.add(nav)
+  }
+  addWingHalf(-1)   // left
+  addWingHalf(+1)   // right
+
+  // ── Horizontal stabilisers
+  const addHStab = (side) => {
+    const hs = cast(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.68), matWing))
+    hs.position.set(side * 0.85, 0.07, 2.22)
+    hs.rotation.y = side * 0.10
+    hs.rotation.z = -side * 0.04
+    g.add(hs)
+  }
+  addHStab(-1)
+  addHStab(+1)
+
+  // ── Vertical stabiliser
+  const vStab = cast(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.82, 0.68), matWing))
+  vStab.position.set(0, 0.46, 2.18)
   g.add(vStab)
 
-  // nav lights
-  const navL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 4), mat.red)
-  navL.position.set(-4.7, 0.1, 0.2)
-  g.add(navL)
-  const navR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 4), mat.green)
-  navR.position.set(4.7, 0.1, 0.2)
-  g.add(navR)
-
-  // propeller group (spins)
+  // ── Propeller group (spins)
   const propGroup = new THREE.Group()
-  propGroup.position.set(0, 0, -3.4)
-  const blade1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.8, 0.08), mat.prop)
-  const blade2 = blade1.clone()
+  propGroup.position.set(0, 0, -3.25)
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.9, 0.06), matProp)
+  blade.castShadow = true
+  const blade2 = blade.clone()
   blade2.rotation.z = Math.PI / 2
-  propGroup.add(blade1, blade2)
-  // spinner
-  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 8), mat.dark)
+  propGroup.add(blade, blade2)
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.24, 10), matDark)
   spinner.rotation.x = Math.PI / 2
-  spinner.position.z = -0.18
+  spinner.position.z = -0.16
+  spinner.castShadow = true
   propGroup.add(spinner)
   g.add(propGroup)
 
   return { group: g, propGroup }
 }
 
-function applyPose(s, row, baseAlt, altRange, hud, ruler) {
+// ── Compass rose on ground ────────────────────────────────────────────────────
+function buildCompassRose() {
+  const g = new THREE.Group()
+  g.position.y = 0.015
+
+  // Outer ring
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(7.6, 7.9, 72),
+    new THREE.MeshBasicMaterial({ color: 0x3a4a6a, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })
+  )
+  ring.rotation.x = -Math.PI / 2
+  g.add(ring)
+
+  // Cardinal ticks: N longer/red, others white
+  const tickMats = {
+    N: new THREE.MeshBasicMaterial({ color: 0xff5555 }),
+    E: new THREE.MeshBasicMaterial({ color: 0x8899bb }),
+    S: new THREE.MeshBasicMaterial({ color: 0x8899bb }),
+    W: new THREE.MeshBasicMaterial({ color: 0x8899bb }),
+  }
+  const cards = [
+    { label: 'N', angle: 0,             mat: tickMats.N, len: 1.1 },
+    { label: 'E', angle: Math.PI / 2,   mat: tickMats.E, len: 0.6 },
+    { label: 'S', angle: Math.PI,       mat: tickMats.S, len: 0.6 },
+    { label: 'W', angle: -Math.PI / 2,  mat: tickMats.W, len: 0.6 },
+  ]
+  for (const { angle, mat, len } of cards) {
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.01, len), mat)
+    tick.rotation.y = angle
+    tick.position.set(Math.sin(angle) * 7.1, 0, -Math.cos(angle) * 7.1)
+    g.add(tick)
+  }
+
+  // North arrow (pointing North = -Z in scene)
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff4444 })
+  const arrowBody = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 3.5), arrowMat)
+  arrowBody.position.set(0, 0, -3.5 / 2)
+  g.add(arrowBody)
+  const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 6), arrowMat)
+  arrowHead.rotation.x = Math.PI / 2
+  arrowHead.position.set(0, 0, -3.7)
+  g.add(arrowHead)
+
+  // South half of arrow (grey)
+  const southMat = new THREE.MeshBasicMaterial({ color: 0x556688 })
+  const arrowS = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 3.5), southMat)
+  arrowS.position.set(0, 0, 3.5 / 2)
+  g.add(arrowS)
+
+  return g
+}
+
+// ── Pose application ──────────────────────────────────────────────────────────
+function applyPose(s, row, baseAlt, altRange, hud, ruler, hdgDeg = 0, pitchDeg = 0) {
   const alt   = row['Alt(m)'] ?? 0
-  const pitch = row._pitchDeg != null ? (row._pitchDeg * Math.PI) / 180 : 0
-  const roll  = row._rollDeg  != null ? (row._rollDeg  * Math.PI) / 180 : 0
-  const yaw   = row._yawDeg   != null ? (row._yawDeg   * Math.PI) / 180 : 0
-  const SCALE = 14 / altRange
+  const pitch = pitchDeg * DEG2RAD
+  const roll  = (row._rollDeg  ?? 0) * DEG2RAD
+  const hdg   = hdgDeg * DEG2RAD
+
+  const SCALE  = 14 / altRange
   const planeY = Math.max(0.5, (alt - baseAlt) * SCALE)
 
-  s.plane.rotation.x = -pitch
+  // YXZ order: first heading (Y), then pitch (X), then roll (Z)
+  // Compass North = -Z in scene. Heading increases clockwise → negative Y rotation.
+  // Positive pitch = nose up → positive rotation.x tilts nose toward +Y (up).
+  s.plane.rotation.y = -hdg
+  s.plane.rotation.x = pitch
   s.plane.rotation.z = -roll
-  s.plane.rotation.y = yaw
   s.plane.position.y = planeY
+
   s.pole.scale.y     = planeY
   s.pole.position.y  = planeY / 2
-  s.shadowCircle.material.opacity = Math.max(0.05, 0.35 - planeY * 0.015)
-  s.camera.position.set(11, planeY + 4, 18)
-  s.camera.lookAt(0, planeY, 0)
+  s.shadowCircle.material.opacity = Math.max(0.04, 0.32 - planeY * 0.014)
+
+  if (s.controls) s.controls.target.set(0, planeY, 0)
 
   if (hud) {
     const vspd = row['VSpd(m/s)'] ?? 0
     const spd  = row['GSpd(kmh)'] ?? 0
-    const hdg  = row['Hdg(°)'] ?? 0
     hud.innerHTML = [
       `<span style="color:#9ece6a">ALT</span> ${alt.toFixed(1)}<small>m</small>`,
       `<span style="color:#7dcfff">V/S</span> ${vspd >= 0 ? '+' : ''}${vspd.toFixed(1)}<small>m/s</small>`,
-      `<span style="color:#f7768e">PCH</span> ${(row._pitchDeg ?? 0).toFixed(1)}°`,
+      `<span style="color:#f7768e">PCH</span> ${pitchDeg.toFixed(1)}°`,
       `<span style="color:#7aa2f7">RLL</span> ${(row._rollDeg ?? 0).toFixed(1)}°`,
-      `<span style="color:#e0af68">HDG</span> ${hdg.toFixed(0)}°`,
+      `<span style="color:#e0af68">HDG</span> ${hdgDeg.toFixed(0)}°`,
       `<span style="color:#ff9e64">SPD</span> ${spd.toFixed(0)}<small>km/h</small>`,
     ].join('<br/>')
   }
   if (ruler) updateRuler(ruler, alt, baseAlt, altRange)
 }
 
+// ── React component ───────────────────────────────────────────────────────────
 export default function AltitudeAttitudeView({ rows, cursorIndex, virtualTimeRef }) {
   const canvasRef = useRef(null)
   const sceneRef  = useRef(null)
   const hudRef    = useRef(null)
   const rulerRef  = useRef(null)
-  const baRef     = useRef(0)   // baseAlt — updated without re-render
-  const arRef     = useRef(30)  // altRange
+  const baRef     = useRef(0)
+  const arRef     = useRef(30)
 
-  // Keep altitude constants in sync with rows
   useMemo(() => {
     baRef.current = rows[0]?.['Alt(m)'] ?? 0
     const alts = rows.map(r => r['Alt(m)'] ?? 0)
     arRef.current = Math.max(30, Math.max(...alts) - Math.min(...alts))
   }, [rows])
 
-  // Build scene once per flight (rows changing means new log loaded)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -137,79 +258,99 @@ export default function AltitudeAttitudeView({ rows, cursorIndex, virtualTimeRef
     const W = canvas.clientWidth
     const H = canvas.clientHeight
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(W, H)
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-    // Scene
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x080f1a)
-    scene.fog = new THREE.FogExp2(0x080f1a, 0.022)
+    scene.background = new THREE.Color(0x070d18)
+    scene.fog = new THREE.FogExp2(0x070d18, 0.020)
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0x8899cc, 0.6)
+    // Lighting — key + fill + rim for 3-point setup
+    const ambient = new THREE.AmbientLight(0x7788bb, 0.45)
     scene.add(ambient)
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2)
-    sun.position.set(8, 20, 10)
+
+    const sun = new THREE.DirectionalLight(0xfff4e0, 1.4)
+    sun.position.set(10, 22, 8)
     sun.castShadow = true
     sun.shadow.mapSize.set(1024, 1024)
+    sun.shadow.camera.near = 0.5
+    sun.shadow.camera.far  = 80
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -20
+    sun.shadow.camera.right = sun.shadow.camera.top  = 20
     scene.add(sun)
-    const fill = new THREE.DirectionalLight(0x3355aa, 0.3)
-    fill.position.set(-8, 5, -10)
+
+    const fill = new THREE.DirectionalLight(0x2244aa, 0.4)
+    fill.position.set(-10, 6, -12)
     scene.add(fill)
 
+    const rim = new THREE.DirectionalLight(0x99aacc, 0.25)
+    rim.position.set(0, -4, -20)
+    scene.add(rim)
+
     // Ground
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0x1e360d })
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), groundMat)
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshLambertMaterial({ color: 0x1a3010 })
+    )
     ground.rotation.x = -Math.PI / 2
     ground.receiveShadow = true
-    ground.position.y = 0
     scene.add(ground)
 
     // Grid
-    const grid = new THREE.GridHelper(80, 40, 0x2a4020, 0x2a4020)
+    const grid = new THREE.GridHelper(80, 40, 0x243818, 0x243818)
     grid.position.y = 0.01
     scene.add(grid)
 
+    // Compass rose (fixed to world — does not rotate with plane)
+    scene.add(buildCompassRose())
+
     // Altitude pole
-    const poleMat = new THREE.MeshLambertMaterial({ color: 0x566190, transparent: true, opacity: 0.6 })
-    const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 6)
-    const pole = new THREE.Mesh(poleGeo, poleMat)
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 1, 6),
+      new THREE.MeshLambertMaterial({ color: 0x4a5580, transparent: true, opacity: 0.55 })
+    )
     scene.add(pole)
 
-    // Shadow circle under plane
-    const shadowMat = new THREE.MeshLambertMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
-    const shadowCircle = new THREE.Mesh(new THREE.CircleGeometry(1.4, 16), shadowMat)
+    // Shadow circle
+    const shadowCircle = new THREE.Mesh(
+      new THREE.CircleGeometry(1.5, 20),
+      new THREE.MeshLambertMaterial({ color: 0x000000, transparent: true, opacity: 0.32 })
+    )
     shadowCircle.rotation.x = -Math.PI / 2
     shadowCircle.position.y = 0.02
     scene.add(shadowCircle)
 
-    // Plane model
+    // Aircraft
     const { group: plane, propGroup } = buildPlane()
     scene.add(plane)
 
-    // Camera
+    const gpsRows = rows.filter(r => r._lat != null && r._lon != null)
+
     const camera = new THREE.PerspectiveCamera(52, W / H, 0.1, 600)
-    camera.position.set(11, 6, 18)
+    camera.position.set(0, 3, 32)
     camera.lookAt(0, 2, 0)
 
-    // Handle resize
+    const controls = new OrbitControls(camera, canvas)
+    controls.enableDamping  = true
+    controls.dampingFactor  = 0.08
+    controls.minDistance    = 5
+    controls.maxDistance    = 80
+    controls.target.set(0, 2, 0)
+    controls.update()
+
     const ro = new ResizeObserver(() => {
-      const w = canvas.clientWidth
-      const h = canvas.clientHeight
+      const w = canvas.clientWidth, h = canvas.clientHeight
       renderer.setSize(w, h)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
     })
     ro.observe(canvas)
 
-    // Store refs for cursor-driven updates
-    sceneRef.current = { renderer, scene, camera, plane, propGroup, pole, shadowCircle }
+    sceneRef.current = { renderer, scene, camera, controls, plane, propGroup, pole, shadowCircle }
 
-    // Animation loop — interpolates pose every frame
     let raf
     const animate = () => {
       raf = requestAnimationFrame(animate)
@@ -217,8 +358,14 @@ export default function AltitudeAttitudeView({ rows, cursorIndex, virtualTimeRef
 
       const vt  = virtualTimeRef?.current ?? rows[0]._tSec
       const row = interpRows(rows, vt)
-      if (row) applyPose({ renderer, scene, camera, plane, propGroup, pole, shadowCircle }, row, baRef.current, arRef.current, hudRef.current, rulerRef.current)
-
+      if (row) applyPose(
+        { renderer, scene, camera, controls, plane, propGroup, pole, shadowCircle },
+        row, baRef.current, arRef.current,
+        hudRef.current, rulerRef.current,
+        computeTrajHdg(gpsRows, vt),
+        computeTrajPitch(gpsRows, vt)
+      )
+      controls.update()
       renderer.render(scene, camera)
     }
     animate()
@@ -226,28 +373,23 @@ export default function AltitudeAttitudeView({ rows, cursorIndex, virtualTimeRef
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect()
+      controls.dispose()
       renderer.dispose()
       sceneRef.current = null
     }
   }, [])
 
-  // Pose is now driven inside the rAF loop — no separate useEffect needed
-
   return (
     <div className="attitude-view">
       <canvas ref={canvasRef} className="attitude-canvas" />
-
-      {/* Altitude ruler */}
       <div ref={rulerRef} className="alt-ruler" />
-
-      {/* HUD */}
       <div ref={hudRef} className="attitude-hud" />
-
       <div className="attitude-label">ATTITUDE</div>
     </div>
   )
 }
 
+// ── Altitude ruler ────────────────────────────────────────────────────────────
 function updateRuler(el, currentAlt, baseAlt, altRange) {
   const step = altRange > 200 ? 50 : altRange > 80 ? 25 : 10
   const maxAlt = baseAlt + altRange
@@ -256,17 +398,16 @@ function updateRuler(el, currentAlt, baseAlt, altRange) {
   const ticks = []
   const first = Math.ceil(minAlt / step) * step
   for (let a = first; a <= maxAlt + step * 0.5; a += step) {
-    const pct = ((a - minAlt) / altRange) * 100
-    const clamp = Math.min(98, Math.max(2, 100 - pct))
-    const isCurrent = Math.abs(a - currentAlt) < step * 0.5
+    const pct    = ((a - minAlt) / altRange) * 100
+    const clamp  = Math.min(98, Math.max(2, 100 - pct))
+    const active = Math.abs(a - currentAlt) < step * 0.5
     ticks.push(
-      `<div class="ruler-tick${isCurrent ? ' ruler-tick-active' : ''}" style="top:${clamp}%">` +
+      `<div class="ruler-tick${active ? ' ruler-tick-active' : ''}" style="top:${clamp}%">` +
       `<span class="ruler-val">${a}</span><span class="ruler-line"></span></div>`
     )
   }
 
-  // Current altitude indicator
-  const curPct = 100 - (((currentAlt - minAlt) / altRange) * 100)
+  const curPct  = 100 - (((currentAlt - minAlt) / altRange) * 100)
   const clamped = Math.min(96, Math.max(3, curPct))
   ticks.push(
     `<div class="ruler-cursor" style="top:${clamped}%">` +
