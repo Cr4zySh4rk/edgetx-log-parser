@@ -1,6 +1,6 @@
 {
   "name": "edgetx-log-parser",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "EdgeTX flight log visualizer for RC aircraft",
   "main": "electron/main.js",
   "author": "narenana",

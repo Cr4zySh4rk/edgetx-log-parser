@@ -184,6 +184,12 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
     const cc = viewer.cesiumWidget?.creditContainer
     if (cc) cc.style.display = 'none'
 
+    // Disable inertia — zoom/pan/orbit should stop the instant the user releases input
+    const ssc = viewer.scene.screenSpaceCameraController
+    ssc.inertiaSpin = 0
+    ssc.inertiaTranslate = 0
+    ssc.inertiaZoom = 0
+
     viewer.imageryLayers.removeAll()
     Cesium.ArcGisMapServerImageryProvider
       .fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer')
@@ -331,7 +337,11 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
         smooth.dist = Math.max(150, Math.min(600, camDist))
       } else {
         Cesium.Cartesian3.lerp(smooth.pos, target, 0.05, smooth.pos)
-        smooth.hdg  = lerpHdg(smooth.hdg, targetHdg, 0.012)
+        // Heading: deadband so small drifts/turns don't rotate the camera.
+        // Only follow if offset > 45°, and then slowly (0.4%/frame).
+        const hdgDelta = ((targetHdg - smooth.hdg + 540) % 360) - 180
+        if (Math.abs(hdgDelta) > 45) smooth.hdg = lerpHdg(smooth.hdg, targetHdg, 0.004)
+        smooth.hdg = ((smooth.hdg % 360) + 360) % 360  // wrap to [0,360)
         smooth.dist += (targetDist - smooth.dist) * 0.008
       }
 
@@ -401,8 +411,9 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
       const ac = s.getAircraftEntity?.()
       if (ac) { s.viewer.trackedEntity = ac; s.viewer.camera.constrainedAxis = undefined }
     } else {
-      // Back to auto: release trackedEntity so our custom lookAt drives the camera
+      // Back to auto: release trackedEntity and any residual orbit transform
       s.viewer.trackedEntity = undefined
+      s.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
       s.smooth.pos = null
     }
   }
