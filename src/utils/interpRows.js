@@ -41,5 +41,17 @@ export function interpRows(rows, vt) {
     _pitchDeg:    lerp(a._pitchDeg,    b._pitchDeg),
     _rollDeg:     lerp(a._rollDeg,     b._rollDeg),
     _yawDeg:      lerp(a._yawDeg,      b._yawDeg),
+    _rudN:        lerp(a._rudN, b._rudN),
+    _eleN:        lerp(a._eleN, b._eleN),
+    _thrN:        lerp(a._thrN, b._thrN),
+    _ailN:        lerp(a._ailN, b._ailN),
+    _p1N:         lerp(a._p1N,  b._p1N),
+    _p2N:         lerp(a._p2N,  b._p2N),
+    _p3N:         lerp(a._p3N,  b._p3N),
+    _sl1N:        lerp(a._sl1N, b._sl1N),
+    _sl2N:        lerp(a._sl2N, b._sl2N),
+    // Switches are discrete — take nearest row (no interpolation)
+    SA: a.SA, SB: a.SB, SC: a.SC, SD: a.SD,
+    SE: a.SE, SF: a.SF, SG: a.SG, SH: a.SH,
   }
 }

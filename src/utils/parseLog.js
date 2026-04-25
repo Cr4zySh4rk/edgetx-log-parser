@@ -58,6 +58,10 @@ export function parseEdgeTXLog(text, filename) {
       prevLon = lon
     }
 
+    // Normalize EdgeTX stick values [-1024, +1024] → [-1, +1]
+    // Throttle convention: stick down = -1024 → -1, stick up = +1024 → +1
+    const normStick = v => (v == null || isNaN(v) ? null : Math.max(-1, Math.min(1, v / 1024)))
+
     return {
       ...r,
       _i: i,
@@ -68,12 +72,24 @@ export function parseEdgeTXLog(text, filename) {
       _rollDeg: r['Roll(rad)'] != null ? r['Roll(rad)'] * R2D : null,
       _yawDeg: r['Yaw(rad)'] != null ? r['Yaw(rad)'] * R2D : null,
       'Hdg(°)': normHdg(r['Hdg(°)']),
+      _rudN: normStick(r['Rud']),
+      _eleN: normStick(r['Ele']),
+      _thrN: normStick(r['Thr']),
+      _ailN: normStick(r['Ail']),
+      _p1N: normStick(r['P1']),
+      _p2N: normStick(r['P2']),
+      _p3N: normStick(r['P3']),
+      _sl1N: normStick(r['SL1']),
+      _sl2N: normStick(r['SL2']),
     }
   })
 
   const hasGPS = rows.some(r => r._lat !== null)
   const hasBattery = rows.some(r => r['RxBt(V)'] > 0)
   const hasCurrent = rows.some(r => r['Curr(A)'] > 0)
+  const hasSticks = rows.some(
+    r => r._rudN != null || r._eleN != null || r._thrN != null || r._ailN != null
+  )
   const flightModes = [...new Set(rows.map(r => r['FM']).filter(Boolean))]
 
   const altVals = rows.map(r => r['Alt(m)']).filter(v => v != null && !isNaN(v))
@@ -96,7 +112,7 @@ export function parseEdgeTXLog(text, filename) {
 
   const events = detectEvents(rows)
 
-  return { filename, rows, flightModes, hasGPS, hasBattery, hasCurrent, stats, events }
+  return { filename, rows, flightModes, hasGPS, hasBattery, hasCurrent, hasSticks, stats, events }
 }
 
 function detectEvents(rows) {

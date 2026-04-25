@@ -327,6 +327,68 @@ body {
   scrollbar-color: var(--border) transparent;
 }
 
+/* ── Radio (transmitter) view ── */
+.radio-view {
+  background: linear-gradient(180deg, #12131c 0%, #0a0b14 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px 4px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.radio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+.radio-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+}
+
+.radio-mode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.radio-mode-label {
+  font-size: 10px;
+  color: var(--text3);
+  margin-right: 2px;
+}
+
+.radio-mode-btn {
+  background: transparent;
+  color: var(--text3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.radio-mode-btn:hover { color: var(--text); border-color: var(--blue); }
+.radio-mode-btn.active {
+  background: var(--blue);
+  color: var(--bg);
+  border-color: var(--blue);
+}
+
+.radio-svg {
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+  display: block;
+}
+
 .dashboard-bottom {
   flex: none;
   background: var(--bg2);

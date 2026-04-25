@@ -5,6 +5,7 @@ import FlightModeBar from './FlightModeBar'
 import StatsPanel from './StatsPanel'
 import AltitudeAttitudeView from './AltitudeAttitudeView'
 import GlobeView from './GlobeView'
+import RadioView from './RadioView'
 
 const SPEEDS = [0.1, 0.5, 1, 2, 5, 10, 30, 60]
 
@@ -193,6 +194,9 @@ export default function Dashboard({ log }) {
         </div>
 
         <div className="dashboard-right">
+          {log.hasSticks && (
+            <RadioView rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+          )}
           <SyncedChart title="Attitude" datasets={attitudeDatasets} labels={labels} yLabel="degrees" cursorIndex={cursorIndex} onCursorChange={handleCursor} />
           <SyncedChart title="Altitude & Vertical Speed" datasets={altDatasets} labels={labels} yLabel="m" y1Label="m/s" cursorIndex={cursorIndex} onCursorChange={handleCursor} />
           <SyncedChart title="Speed & Heading" datasets={speedDatasets} labels={labels} yLabel="km/h" y1Label="degrees" cursorIndex={cursorIndex} onCursorChange={handleCursor} />
