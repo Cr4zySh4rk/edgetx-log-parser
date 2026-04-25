@@ -642,3 +642,101 @@ body {
   background: currentColor;
   opacity: 0.5;
 }
+
+/* ── Responsive breakpoints ──────────────────────────────────────────────────
+ * Two transitions:
+ *   1280px → tighter spacing (small desktops, large tablets)
+ *    960px → stacked layout (tablets, landscape phones)
+ *    640px → compact header + larger touch targets (phones)
+ *
+ * On a narrow viewport `body { overflow: hidden; height: 100vh }` is replaced
+ * with normal vertical scrolling so the dashboard can be longer than the
+ * viewport. The 3D globe gets a fixed pixel height; charts flow below.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1280px) {
+  .dashboard-right { padding: 4px 6px 8px; }
+  .chart-panel { padding: 6px 8px 4px; margin-bottom: 6px; }
+  .stat-item { padding: 5px 8px; }
+}
+
+@media (max-width: 960px) {
+  body { overflow: auto; height: auto; min-height: 100vh; }
+  .app { height: auto; min-height: 100vh; }
+
+  /* Stack left + right vertically so the globe + charts are full-width. */
+  .dashboard-main { flex-direction: column; overflow: visible; }
+  .dashboard-left {
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+  .dashboard-right {
+    flex: none;
+    overflow: visible;
+    padding: 8px 10px 10px;
+  }
+  .dashboard { overflow: visible; }
+
+  /* Globe / map fill the full viewport width but a fixed slice of height. */
+  .map-wrap, .globe-wrap { height: 55vh; min-height: 320px; }
+  .attitude-view { height: 200px; }
+
+  /* Stats panel: 3 per row instead of one tight row. */
+  .stat-item { flex: 1 1 33%; min-width: 0; }
+  .stat-item:nth-child(3n) { border-right: none; }
+
+  /* Chart panels keep the inline 160px wrapper from SyncedChart — explicit
+     min-height here just guards against rounding when the parent is no
+     longer a flex-grow container with a viewport-scaled height. */
+  .chart-panel { min-height: 160px; }
+
+  .dashboard-bottom { padding: 8px 10px 10px; }
+
+  .drop-actions { flex-direction: column; align-items: stretch; max-width: 280px; }
+}
+
+@media (max-width: 640px) {
+  /* Header: hide the wordmark, let the file button shrink, keep tabs scrollable. */
+  .header { padding: 0 10px; gap: 8px; height: 44px; }
+  .header-logo { display: none; }
+  .open-btn { padding: 6px 10px; font-size: 11px; }
+  .tab { padding: 4px 10px; font-size: 11px; }
+
+  /* View toggle: smaller buttons, label hidden. */
+  .view-toggle-bar { padding: 4px 8px; gap: 3px; }
+  .view-toggle-label { display: none; }
+  .view-toggle-btn { padding: 4px 10px; font-size: 11px; min-height: 28px; }
+
+  /* Larger touch targets for playback. */
+  .play-btn { width: 36px; height: 32px; font-size: 16px; }
+  .speed-btn { padding: 4px 8px; font-size: 11px; min-height: 28px; }
+  .speed-btns { flex-wrap: wrap; }
+
+  /* Thicker scrubber for fingers. */
+  .timeline-scrubber { height: 8px; }
+
+  /* Cursor info wraps under controls instead of squashing them. */
+  .playback-row { flex-wrap: wrap; }
+  .cursor-info { width: 100%; margin-left: 0 !important; margin-top: 4px; }
+
+  .stat-item { flex: 1 1 50%; padding: 4px 6px; font-size: 11px; }
+  .stat-item:nth-child(3n) { border-right: 1px solid var(--border); }
+  .stat-item:nth-child(2n) { border-right: none; }
+  .stat-value { font-size: 12px; }
+
+  /* Empty state: tighten copy, stack buttons full-width. */
+  .drop-overlay { gap: 12px; padding: 0 24px; }
+  .drop-icon { font-size: 40px; }
+  .drop-title { font-size: 17px; text-align: center; }
+  .drop-sub { font-size: 12px; text-align: center; }
+  .drop-actions { width: 100%; max-width: 320px; }
+  .drop-btn { width: 100%; padding: 12px 18px; font-size: 14px; }
+
+  .map-wrap, .globe-wrap { height: 45vh; min-height: 260px; }
+  .chart-panel { padding: 6px 6px 4px; }
+
+  .fm-legend { gap: 6px; }
+  .fm-legend-item { font-size: 9px; }
+}
