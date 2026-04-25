@@ -2,6 +2,10 @@
 
 A desktop flight log visualiser for EdgeTX RC aircraft. Load a CSV log from your transmitter's SD card and replay the entire flight in 3D — satellite map, live attitude, synced charts.
 
+[![EdgeTX Log Parser — video walkthrough](https://img.youtube.com/vi/6MLQCoG5t2w/maxresdefault.jpg)](https://youtu.be/6MLQCoG5t2w)
+
+*Click the thumbnail above to watch a quick walkthrough on YouTube.*
+
 ---
 
 ## Downloads
