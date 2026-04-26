@@ -55,6 +55,9 @@ jobs:
       - name: Remove macOS quarantine attribute from DMG
         run: xattr -cr release/*.dmg
 
+      - name: Remove blockmap and yml files
+        run: rm -f release/*.blockmap release/*.yml
+
       - name: List release artifacts
         run: ls -lh release/
 
