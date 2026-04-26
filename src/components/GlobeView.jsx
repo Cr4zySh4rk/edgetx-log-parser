@@ -3,6 +3,7 @@ import * as Cesium from 'cesium'
 import * as THREE from 'three'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import { interpRows } from '../utils/interpRows'
+import { track } from '../utils/analytics'
 
 // Cesium Ion token comes from Vite env (VITE_CESIUM_TOKEN). Empty token still
 // renders Bing-imagery fallback; a real token unlocks higher-res tiles + 3D Tiles.
@@ -406,6 +407,7 @@ export default function GlobeView({ rows, cursorIndex, virtualTimeRef }) {
     const next = !autoMode
     setAutoMode(next)
     autoRef.current = next
+    track('camera_mode_toggled', { mode: next ? 'auto' : 'manual' })
     const s = stateRef.current
     if (!s) return
     if (!next) {

@@ -3,6 +3,7 @@ import FlightMap from './FlightMap'
 import SyncedChart from './SyncedChart'
 import FlightModeBar from './FlightModeBar'
 import StatsPanel from './StatsPanel'
+import { track } from '../utils/analytics'
 
 // GlobeView pulls in Cesium (external via vite-plugin-cesium) and the
 // Three.js GLB exporter. AltitudeAttitudeView pulls in the Three.js runtime.
@@ -38,6 +39,21 @@ export default function Dashboard({ log }) {
   useEffect(() => { speedRef.current = speed }, [speed])
 
   const { rows, events } = log
+
+  // ── Per-log analytics summary (privacy-safe aggregates only) ────────────────
+  // Fired once per loaded log. No GPS, no flight content — just shape metrics
+  // that help us see what kinds of flights people are analysing.
+  useEffect(() => {
+    track('log_summary', {
+      duration_sec: Math.round(log.stats?.duration ?? 0),
+      row_count: rows.length,
+      has_gps: !!log.hasGPS,
+      has_battery: !!log.hasBattery,
+      has_current: !!log.hasCurrent,
+      mode_count: log.flightModes?.length ?? 0,
+      event_count: events?.length ?? 0,
+    })
+  }, [log.filename]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Animation loop ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -156,14 +172,24 @@ export default function Dashboard({ log }) {
         <span className="view-toggle-label">View</span>
         <button
           className={`view-toggle-btn${viewMode === 1 ? ' active' : ''}`}
-          onClick={() => setViewMode(1)}
+          onClick={() => {
+            if (viewMode !== 1) {
+              setViewMode(1)
+              track('view_changed', { mode: 'classic' })
+            }
+          }}
           title="2D map + attitude panel"
         >
           ① Classic
         </button>
         <button
           className={`view-toggle-btn${viewMode === 2 ? ' active' : ''}`}
-          onClick={() => setViewMode(2)}
+          onClick={() => {
+            if (viewMode !== 2) {
+              setViewMode(2)
+              track('view_changed', { mode: 'globe' })
+            }
+          }}
           title="3D globe with satellite imagery"
         >
           ② 3D Globe
@@ -217,7 +243,13 @@ export default function Dashboard({ log }) {
         <div className="playback-row">
           <button
             className={`play-btn${playing ? ' active' : ''}`}
-            onClick={() => setPlaying(p => !p)}
+            onClick={() => {
+              setPlaying(p => {
+                const next = !p
+                if (next) track('playback_started', { speed })
+                return next
+              })
+            }}
             title="Play / Pause (Space)"
           >
             {playing ? '⏸' : '▶'}
@@ -227,7 +259,12 @@ export default function Dashboard({ log }) {
               <button
                 key={s}
                 className={`speed-btn${speed === s ? ' active' : ''}`}
-                onClick={() => setSpeed(s)}
+                onClick={() => {
+                  if (s !== speed) {
+                    setSpeed(s)
+                    track('playback_speed_changed', { speed: s })
+                  }
+                }}
               >
                 {s}×
               </button>
@@ -242,6 +279,8 @@ export default function Dashboard({ log }) {
           cursorIndex={cursorIndex}
           onCursorChange={idx => { handleCursor(idx); setPlaying(false) }}
           events={events}
+          onSegmentClick={mode => track('flight_mode_clicked', { mode })}
+          onEventClick={type => track('event_marker_clicked', { type })}
         />
 
         {/* Timeline scrubber */}

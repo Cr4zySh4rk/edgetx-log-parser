@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { parseEdgeTXLog } from './utils/parseLog'
 import { loadLogFromUrl } from './utils/loadLogFromUrl'
+import { initAnalytics, getConsent, track } from './utils/analytics'
+import ConsentBanner from './components/ConsentBanner'
 
 // Dashboard pulls in Chart.js, Leaflet, Three.js, plus its own lazy children
 // (GlobeView, AltitudeAttitudeView). Splitting it off keeps the empty-state
@@ -38,6 +40,12 @@ export default function App() {
     })
   }, [])
 
+  // If consent was granted on a previous visit, init analytics on mount.
+  // (New visitors stay opted-out until they accept via the banner.)
+  useEffect(() => {
+    if (getConsent() === 'granted') initAnalytics()
+  }, [])
+
   const loadFiles = useCallback(async files => {
     setError(null)
     const results = []
@@ -52,6 +60,7 @@ export default function App() {
       }
     }
     if (results.length) {
+      track('log_loaded', { source: 'file', count: results.length })
       setLogs(prev => {
         const next = [...prev, ...results]
         setActiveIndex(next.length - 1)
@@ -65,6 +74,7 @@ export default function App() {
     setLoadingSample(true)
     try {
       const log = await loadLogFromUrl('./sample-log.csv', { displayName: 'sample-flight.csv' })
+      track('log_loaded', { source: 'sample' })
       appendLog(log)
     } catch (e) {
       setError(`Failed to load sample: ${e.message}`)
@@ -80,7 +90,10 @@ export default function App() {
     const remote = params.get('log')
     if (!remote) return
     loadLogFromUrl(remote)
-      .then(appendLog)
+      .then(log => {
+        track('log_loaded', { source: 'shared-url' })
+        appendLog(log)
+      })
       .catch(e => setError(`Failed to load shared log: ${e.message}`))
   }, [appendLog])
 
@@ -206,6 +219,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <ConsentBanner />
     </div>
   )
 }

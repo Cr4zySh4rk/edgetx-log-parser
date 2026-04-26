@@ -8,7 +8,14 @@ const EVENT_STYLES = {
   land:    { icon: '▼', label: 'LND',     color: '#7dcfff' },
 }
 
-export default function FlightModeBar({ rows, cursorIndex, onCursorChange, events = [] }) {
+export default function FlightModeBar({
+  rows,
+  cursorIndex,
+  onCursorChange,
+  events = [],
+  onSegmentClick,
+  onEventClick,
+}) {
   const activeMode = rows[cursorIndex]?.['FM'] || null
   const segments = useMemo(() => {
     if (!rows.length) return []
@@ -33,7 +40,10 @@ export default function FlightModeBar({ rows, cursorIndex, onCursorChange, event
   const handleBarClick = (e, el) => {
     const rect = el.getBoundingClientRect()
     const frac = (e.clientX - rect.left) / rect.width
-    onCursorChange(Math.round(frac * (total - 1)))
+    const idx = Math.round(frac * (total - 1))
+    onCursorChange(idx)
+    const mode = rows[idx]?.['FM']
+    if (mode && onSegmentClick) onSegmentClick(mode)
   }
 
   return (
@@ -51,7 +61,10 @@ export default function FlightModeBar({ rows, cursorIndex, onCursorChange, event
                 className="fm-event"
                 style={{ left: `${leftPct}%`, color: style.color }}
                 title={`${style.label} at T+${Math.floor(rows[ev.index]?._tSec / 60)}:${String(Math.round(rows[ev.index]?._tSec) % 60).padStart(2, '0')}`}
-                onClick={() => onCursorChange(ev.index)}
+                onClick={() => {
+                  onCursorChange(ev.index)
+                  if (onEventClick) onEventClick(ev.type)
+                }}
               >
                 <span className="fm-event-label">{style.label}</span>
                 <span className="fm-event-icon">{style.icon}</span>
