@@ -1,18 +1,17 @@
 name: Deploy Web App to GitHub Pages
 
+# Only runs on forks — prevents a second public-facing host from lighting up
+# on the canonical narenana/edgetx-log-parser repo (which already auto-deploys
+# to narenana.com/log-viewer/ via Cloudflare Pages). Forkers get GH Pages
+# convenience without touching upstream analytics, PWA scope, or SEO.
+# See: https://github.com/narenana/edgetx-log-parser/pull/7
+
 on:
   push:
     branches:
       - main
       - master
   workflow_dispatch:
-
-# Only runs on forks — prevents a second public-facing host from lighting up
-# on the canonical narenana/edgetx-log-parser repo (which already auto-deploys
-# to narenana.com/log-viewer/ via Cloudflare Pages). Forkers get GH Pages
-# convenience for free without touching upstream analytics, PWA scope, or SEO.
-# See: https://github.com/narenana/edgetx-log-parser/pull/7
-if: github.repository_owner != 'narenana'
 
 permissions:
   contents: read
@@ -26,6 +25,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.repository_owner != 'narenana'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +56,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    if: github.repository_owner != 'narenana'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
