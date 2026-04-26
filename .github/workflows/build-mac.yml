@@ -31,8 +31,13 @@ jobs:
         env:
           VITE_BUILD_TARGET: desktop
 
-      - name: Package macOS DMGs (arm64 + universal)
-        run: npx electron-builder --mac dmg --arm64 --universal
+      - name: Package macOS Universal DMG
+        # Shipping universal-only (Intel + Apple Silicon in one binary).
+        # Verified with a fresh download on an M1 Mac — right-click → Open →
+        # Open on first launch works cleanly. A separate arm64 DMG would be
+        # smaller but universal keeps the release page simple and covers all
+        # Mac users with a single tested artifact.
+        run: npx electron-builder --mac dmg --universal
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           CSC_NAME: "-"
@@ -45,7 +50,7 @@ jobs:
           echo "Release contents:"
           ls -lh release/
 
-      - name: Upload DMG artifacts
+      - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: mac
@@ -172,10 +177,11 @@ jobs:
             #### macOS
             | File | Description |
             |------|-------------|
-            | `*-arm64.dmg` | Apple Silicon native (M1/M2/M3/M4) — smaller download, fastest on M-series |
-            | `*-universal.dmg` | Universal binary — runs on both Intel and Apple Silicon |
+            | `*-universal.dmg` | Universal binary — runs natively on both Intel and Apple Silicon (M1/M2/M3/M4) |
 
             > **First launch:** macOS will show "unidentified developer" since the app is not notarized. To open: **right-click → Open → Open**. You only need to do this once.
+            >
+            > Shipping universal-only for simplicity — verified with a fresh download on an M1 Mac, first-launch right-click → Open worked cleanly.
 
             #### Windows
             | File | Description |
@@ -201,13 +207,12 @@ jobs:
             - **Dual-target build** — single source tree produces both the web app and the desktop app
 
             #### macOS releases (new in this fork)
-            - **arm64 DMG** — native Apple Silicon build, smaller and faster on M-series Macs
-            - **Universal DMG** — single installer for both Intel and Apple Silicon
+            - **Universal DMG** — single installer for both Intel and Apple Silicon, verified on M1
             - **Ad-hoc code signing** (`CSC_NAME="-"`) — prevents Gatekeeper "app is damaged" error on download
-            - Built on GitHub Actions `macos-latest` runners — no local Mac needed
+            - Built on GitHub Actions `macos-latest` runners
 
             #### Windows releases
-            - **NSIS installer** (`*Setup*.exe`) — Start Menu integration, clean uninstall via Add/Remove Programs
+            - **NSIS installer** (`*Setup*.exe`) — Start Menu integration, clean uninstall
             - **Portable executable** — single `.exe`, no install, run from USB or any directory
             - Built on GitHub Actions `windows-latest` runners
 
@@ -216,7 +221,7 @@ jobs:
             - Built on GitHub Actions `ubuntu-latest` runners
 
             #### GitHub Pages web app (fork-only)
-            - Web build deployed to GitHub Pages — gated to run only on this fork
+            - Web build deployed to GitHub Pages — gated so it only runs on forks, not on the canonical repo
             - Auto-deploys on every push to `master`
             - Full PWA: installable from the browser, offline-capable
 
