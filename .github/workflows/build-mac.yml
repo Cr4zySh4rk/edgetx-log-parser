@@ -12,13 +12,6 @@ permissions:
 jobs:
   build-mac:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        include:
-          - arch: arm64
-            label: Apple Silicon (arm64)
-          - arch: universal
-            label: Universal (x64 + arm64)
 
     steps:
       - name: Checkout
@@ -38,20 +31,15 @@ jobs:
         env:
           VITE_BUILD_TARGET: desktop
 
-      - name: Package macOS DMG (${{ matrix.label }})
-        run: npx electron-builder --mac dmg --${{ matrix.arch }}
+      - name: Package macOS Universal DMG
+        run: npx electron-builder --mac dmg --universal
         env:
-          # Ad-hoc sign with "-" identity — free, no Apple Developer account needed.
-          # Tells macOS the binary hasn't been tampered with, preventing the
-          # "damaged" / "can't be opened" Gatekeeper error on downloaded DMGs.
           CSC_IDENTITY_AUTO_DISCOVERY: false
           CSC_NAME: "-"
           ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Ad-hoc sign the .app inside the DMG
-        # electron-builder signs the .app but not always the DMG wrapper itself.
-        # Mount the DMG, deep-sign the .app with "-" (ad-hoc), then unmount.
         run: |
           for DMG in release/*.dmg; do
             echo "Processing $DMG"
@@ -64,9 +52,7 @@ jobs:
             hdiutil detach "$MOUNT" -quiet
           done
 
-      - name: Remove macOS quarantine attribute from DMGs
-        # Strips the com.apple.quarantine xattr so Gatekeeper doesn't flag the
-        # DMG itself as damaged when users open it after downloading.
+      - name: Remove macOS quarantine attribute from DMG
         run: xattr -cr release/*.dmg
 
       - name: List release artifacts
@@ -75,7 +61,7 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mac-${{ matrix.arch }}
+          name: mac-universal
           path: release/*.dmg
           if-no-files-found: warn
 
@@ -97,13 +83,12 @@ jobs:
           body: |
             ## EdgeTX Log Parser – macOS Release
 
-            ### Downloads
+            ### Download
             | File | Description |
             |------|-------------|
             | `*-universal.dmg` | Universal – runs natively on both Intel and Apple Silicon Macs |
-            | `*-arm64.dmg` | Apple Silicon (M1/M2/M3/M4) – native arm64 build |
 
-            > **First launch:** macOS may still show _"unidentified developer"_ since the app
+            > **First launch:** macOS may show _"unidentified developer"_ since the app
             > is not notarized. To open: right-click the app → **Open** → **Open** in the dialog.
             > After that first approval it opens normally.
 
