@@ -1,10 +1,15 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import FlightMap from './FlightMap'
 import SyncedChart from './SyncedChart'
 import FlightModeBar from './FlightModeBar'
 import StatsPanel from './StatsPanel'
-import AltitudeAttitudeView from './AltitudeAttitudeView'
-import GlobeView from './GlobeView'
+
+// GlobeView pulls in Cesium (external via vite-plugin-cesium) and the
+// Three.js GLB exporter. AltitudeAttitudeView pulls in the Three.js runtime.
+// Both are heavy and only needed for the active view mode — lazy chunks let
+// users on the alternate view skip the download entirely until they switch.
+const GlobeView = lazy(() => import('./GlobeView'))
+const AltitudeAttitudeView = lazy(() => import('./AltitudeAttitudeView'))
 
 const SPEEDS = [0.1, 0.5, 1, 2, 5, 10, 30, 60]
 
@@ -171,7 +176,9 @@ export default function Dashboard({ log }) {
             /* ── 3D Globe view ── */
             log.hasGPS ? (
               <div className="globe-wrap">
-                <GlobeView key={log.filename} rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+                <Suspense fallback={<div className="lazy-fallback">Loading 3D globe…</div>}>
+                  <GlobeView key={log.filename} rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+                </Suspense>
               </div>
             ) : (
               <div className="no-gps-msg">No GPS data</div>
@@ -186,7 +193,9 @@ export default function Dashboard({ log }) {
                   <div className="no-gps-msg">No GPS data</div>
                 )}
               </div>
-              <AltitudeAttitudeView rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+              <Suspense fallback={<div className="lazy-fallback attitude-view">Loading attitude view…</div>}>
+                <AltitudeAttitudeView rows={rows} cursorIndex={cursorIndex} virtualTimeRef={virtualTimeRef} />
+              </Suspense>
             </>
           )}
           <StatsPanel log={log} cursorRow={cursorRow} />

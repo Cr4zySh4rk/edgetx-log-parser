@@ -1,7 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { parseEdgeTXLog } from './utils/parseLog'
 import { loadLogFromUrl } from './utils/loadLogFromUrl'
-import Dashboard from './components/Dashboard'
+
+// Dashboard pulls in Chart.js, Leaflet, Three.js, plus its own lazy children
+// (GlobeView, AltitudeAttitudeView). Splitting it off keeps the empty-state
+// bundle small for first paint — empty state needs only React + the parser.
+const Dashboard = lazy(() => import('./components/Dashboard'))
 
 function modelName(filename) {
   return filename.replace(/\.csv$/i, '').replace(/-\d{4}-\d{2}-\d{2}-\d{6}$/, '')
@@ -172,7 +176,9 @@ export default function App() {
       )}
 
       {activeLog ? (
-        <Dashboard key={activeLog.filename} log={activeLog} />
+        <Suspense fallback={<div className="lazy-fallback">Loading viewer…</div>}>
+          <Dashboard key={activeLog.filename} log={activeLog} />
+        </Suspense>
       ) : (
         <div className={`drop-overlay${isDragOver ? ' drag-over' : ''}`}>
           <div className="drop-icon">✈</div>

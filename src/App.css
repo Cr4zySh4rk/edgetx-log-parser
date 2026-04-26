@@ -227,6 +227,22 @@ body {
   font-size: 13px;
 }
 
+/* Suspense fallback shown while a lazy chunk downloads. */
+.lazy-fallback {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3);
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  background: var(--bg);
+  min-height: 120px;
+}
+.lazy-fallback.attitude-view {
+  height: 220px;
+}
+
 /* ── Cesium globe HUD ── */
 .globe-hud {
   position: absolute;
