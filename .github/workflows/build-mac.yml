@@ -39,13 +39,35 @@ jobs:
           VITE_BUILD_TARGET: desktop
 
       - name: Package macOS DMG (${{ matrix.label }})
-        # ELECTRON_BUILDER_PUBLISH=never prevents electron-builder from trying
-        # to push to GitHub Releases itself — we do that in create-release below.
         run: npx electron-builder --mac dmg --${{ matrix.arch }}
         env:
+          # Ad-hoc sign with "-" identity — free, no Apple Developer account needed.
+          # Tells macOS the binary hasn't been tampered with, preventing the
+          # "damaged" / "can't be opened" Gatekeeper error on downloaded DMGs.
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_NAME: "-"
           ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ad-hoc sign the .app inside the DMG
+        # electron-builder signs the .app but not always the DMG wrapper itself.
+        # Mount the DMG, deep-sign the .app with "-" (ad-hoc), then unmount.
+        run: |
+          for DMG in release/*.dmg; do
+            echo "Processing $DMG"
+            MOUNT=$(hdiutil attach "$DMG" -nobrowse -noautoopen | tail -1 | awk '{print $NF}')
+            APP=$(find "$MOUNT" -maxdepth 1 -name "*.app" | head -1)
+            if [ -n "$APP" ]; then
+              echo "Ad-hoc signing $APP"
+              codesign --force --deep --sign "-" "$APP"
+            fi
+            hdiutil detach "$MOUNT" -quiet
+          done
+
+      - name: Remove macOS quarantine attribute from DMGs
+        # Strips the com.apple.quarantine xattr so Gatekeeper doesn't flag the
+        # DMG itself as damaged when users open it after downloading.
+        run: xattr -cr release/*.dmg
 
       - name: List release artifacts
         run: ls -lh release/
@@ -80,6 +102,10 @@ jobs:
             |------|-------------|
             | `*-universal.dmg` | Universal – runs natively on both Intel and Apple Silicon Macs |
             | `*-arm64.dmg` | Apple Silicon (M1/M2/M3/M4) – native arm64 build |
+
+            > **First launch:** macOS may still show _"unidentified developer"_ since the app
+            > is not notarized. To open: right-click the app → **Open** → **Open** in the dialog.
+            > After that first approval it opens normally.
 
             ### Web App
             No install needed — use the live web app:
