@@ -7,6 +7,14 @@ import { loadLogFromUrl } from './utils/loadLogFromUrl'
 // bundle small for first paint — empty state needs only React + the parser.
 const Dashboard = lazy(() => import('./components/Dashboard'))
 
+// PwaUpdate imports `virtual:pwa-register/react` which only exists when
+// vite-plugin-pwa is enabled (web builds). The lazy import keeps the
+// module out of the desktop bundle entirely.
+const IS_WEB = import.meta.env.VITE_BUILD_TARGET === 'web'
+const PwaUpdate = IS_WEB
+  ? lazy(() => import('./components/PwaUpdate'))
+  : null
+
 function modelName(filename) {
   return filename.replace(/\.csv$/i, '').replace(/-\d{4}-\d{2}-\d{2}-\d{6}$/, '')
 }
@@ -205,6 +213,12 @@ export default function App() {
             Logs are parsed in your browser — nothing is uploaded.
           </div>
         </div>
+      )}
+
+      {PwaUpdate && (
+        <Suspense fallback={null}>
+          <PwaUpdate />
+        </Suspense>
       )}
     </div>
   )

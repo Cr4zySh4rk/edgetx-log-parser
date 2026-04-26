@@ -88,6 +88,7 @@
     "electron-builder": "^24.13.3",
     "electron-reload": "^2.0.0-alpha.1",
     "vite": "^5.4.0",
+    "vite-plugin-pwa": "^1.2.0",
     "wait-on": "^8.0.0"
   }
 }
