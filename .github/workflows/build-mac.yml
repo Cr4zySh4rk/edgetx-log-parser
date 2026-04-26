@@ -40,23 +40,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Ad-hoc sign the .app inside the DMG
+        # DMG filenames contain spaces — use find with -print0 / xargs -0 to
+        # handle them safely, and quote all variables throughout.
         run: |
-          for DMG in release/*.dmg; do
-            echo "Processing $DMG"
+          while IFS= read -r -d '' DMG; do
+            echo "Processing: $DMG"
             MOUNT=$(hdiutil attach "$DMG" -nobrowse -noautoopen | tail -1 | awk '{print $NF}')
             APP=$(find "$MOUNT" -maxdepth 1 -name "*.app" | head -1)
             if [ -n "$APP" ]; then
-              echo "Ad-hoc signing $APP"
+              echo "Ad-hoc signing: $APP"
               codesign --force --deep --sign "-" "$APP"
             fi
             hdiutil detach "$MOUNT" -quiet
-          done
+          done < <(find release -name "*.dmg" -print0)
 
-      - name: Remove macOS quarantine attribute from DMG
-        run: xattr -cr release/*.dmg
-
-      - name: Clean up blockmap and yml files
+      - name: Remove macOS quarantine attribute and clean up
         run: |
+          find release -name "*.dmg" -print0 | xargs -0 xattr -cr
           rm -f release/*.blockmap release/*.yml release/*.yaml
           echo "Final release contents:"
           ls -lh release/
@@ -106,8 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: |
-            release/*.exe
+          path: release/*.exe
           if-no-files-found: error
 
   create-release:
@@ -164,7 +163,7 @@ jobs:
 
             #### macOS support
             - **Universal DMG build** — single installer that runs natively on both Intel and Apple Silicon, built on GitHub Actions `macos-latest` runners
-            - **Ad-hoc code signing** — signs the `.app` bundle with a local identity so macOS Gatekeeper doesn't show the "app is damaged" error on download
+            - **Ad-hoc code signing** — signs the `.app` bundle so macOS Gatekeeper doesn't show the "app is damaged" error on download
             - **Clean releases** — blockmap and auto-update yml files are stripped before upload so only the DMG appears in the release assets
 
             #### Windows support (restored from upstream)
@@ -175,7 +174,6 @@ jobs:
             - Deployed the existing web build target (`VITE_BUILD_TARGET=web`) to GitHub Pages via a dedicated Actions workflow
             - Auto-deploys on every push to `master` — always up to date with the latest code
             - Full PWA support: installable from the browser, works offline after first visit
-            - Repository "About" homepage set to the Pages URL
 
             #### CI / build infrastructure
             - All builds run entirely on GitHub Actions — no local toolchain required to produce releases
