@@ -26,6 +26,12 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
@@ -49,6 +55,12 @@
         {
           "target": "dmg",
           "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
             "universal"
           ]
         }
@@ -59,7 +71,11 @@
       "forceCodeSigning": false
     },
     "generateUpdatesFilesForAllChannels": false,
-    "publish": null
+    "publish": null,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "cesium": "^1.140.0",

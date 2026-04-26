@@ -31,8 +31,8 @@ jobs:
         env:
           VITE_BUILD_TARGET: desktop
 
-      - name: Package macOS Universal DMG
-        run: npx electron-builder --mac dmg --universal
+      - name: Package macOS DMGs (arm64 + universal)
+        run: npx electron-builder --mac dmg --arm64 --universal
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           CSC_NAME: "-"
@@ -45,10 +45,10 @@ jobs:
           echo "Release contents:"
           ls -lh release/
 
-      - name: Upload DMG artifact
+      - name: Upload DMG artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mac-universal
+          name: mac
           path: release/*.dmg
           if-no-files-found: error
 
@@ -73,8 +73,8 @@ jobs:
         env:
           VITE_BUILD_TARGET: desktop
 
-      - name: Package Windows portable
-        run: npx electron-builder --win portable --x64
+      - name: Package Windows (NSIS installer + portable)
+        run: npx electron-builder --win nsis portable --x64
         env:
           ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,7 +86,7 @@ jobs:
           Remove-Item release\*.yaml -ErrorAction SilentlyContinue
           Get-ChildItem release\
 
-      - name: Upload Windows artifact
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -172,14 +172,16 @@ jobs:
             #### macOS
             | File | Description |
             |------|-------------|
-            | `*-universal.dmg` | Universal binary — Intel & Apple Silicon (M1/M2/M3/M4) |
+            | `*-arm64.dmg` | Apple Silicon native (M1/M2/M3/M4) — smaller download, fastest on M-series |
+            | `*-universal.dmg` | Universal binary — runs on both Intel and Apple Silicon |
 
             > **First launch:** macOS will show "unidentified developer" since the app is not notarized. To open: **right-click → Open → Open**. You only need to do this once.
 
             #### Windows
             | File | Description |
             |------|-------------|
-            | `*-Portable.exe` | Portable — no install required, run from anywhere |
+            | `*Setup*.exe` | NSIS installer — Start Menu shortcut, Add/Remove Programs uninstaller |
+            | `*Portable*.exe` | Portable — no install required, run from anywhere / USB stick |
 
             #### Linux
             | File | Description |
@@ -190,7 +192,7 @@ jobs:
 
             ### 🔧 What's new in this fork (vs. upstream v2.1.0)
 
-            #### App improvements (carried from upstream v3.0.0)
+            #### App improvements (from upstream v3.0.0)
             - **PWA support** — installable from the browser, works offline after first visit
             - **GA4 analytics** with privacy-first Consent Mode v2
             - **Code splitting** — Dashboard, GlobeView and AltitudeAttitudeView load on demand for faster startup
@@ -199,25 +201,27 @@ jobs:
             - **Dual-target build** — single source tree produces both the web app and the desktop app
 
             #### macOS releases (new in this fork)
-            - **Universal DMG** — single installer that runs natively on both Intel and Apple Silicon
-            - **Ad-hoc code signing** (`CSC_NAME="-"`) applied during packaging — prevents Gatekeeper "app is damaged" error on download
-            - Built on GitHub Actions `macos-latest` runners — no local Mac needed to produce releases
+            - **arm64 DMG** — native Apple Silicon build, smaller and faster on M-series Macs
+            - **Universal DMG** — single installer for both Intel and Apple Silicon
+            - **Ad-hoc code signing** (`CSC_NAME="-"`) — prevents Gatekeeper "app is damaged" error on download
+            - Built on GitHub Actions `macos-latest` runners — no local Mac needed
 
-            #### Windows releases (restored + simplified)
-            - **Portable executable** — single `.exe`, no installer, no registry changes, run from anywhere
+            #### Windows releases
+            - **NSIS installer** (`*Setup*.exe`) — Start Menu integration, clean uninstall via Add/Remove Programs
+            - **Portable executable** — single `.exe`, no install, run from USB or any directory
             - Built on GitHub Actions `windows-latest` runners
 
             #### Linux releases (restored from upstream)
-            - **tar.gz archive** for x64 — extract and run, same as upstream v2.1.0
+            - **tar.gz archive** for x64 — same format as upstream v2.1.0
             - Built on GitHub Actions `ubuntu-latest` runners
 
-            #### GitHub Pages web app (new in this fork)
-            - The existing web build target deployed to GitHub Pages at **https://Cr4zySh4rk.github.io/edgetx-log-parser/**
+            #### GitHub Pages web app (fork-only)
+            - Web build deployed to GitHub Pages — gated to run only on this fork
             - Auto-deploys on every push to `master`
-            - Full PWA: installable from the browser, offline-capable after first visit
+            - Full PWA: installable from the browser, offline-capable
 
-            #### CI / build infrastructure (new in this fork)
-            - All three platform builds (macOS, Windows, Linux) run in parallel on GitHub Actions
-            - Release is created automatically only after all three jobs succeed
+            #### CI / build infrastructure
+            - macOS, Windows, and Linux jobs run in parallel
+            - Release created automatically only after all three succeed
             - Triggered on `v*` tags or manually via `workflow_dispatch`
-            - Clean release assets — blockmap and auto-update yml files stripped before upload
+            - Clean release assets — blockmap and yml files stripped before upload

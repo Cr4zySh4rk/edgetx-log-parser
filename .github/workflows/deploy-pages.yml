@@ -7,6 +7,13 @@ on:
       - master
   workflow_dispatch:
 
+# Only runs on forks — prevents a second public-facing host from lighting up
+# on the canonical narenana/edgetx-log-parser repo (which already auto-deploys
+# to narenana.com/log-viewer/ via Cloudflare Pages). Forkers get GH Pages
+# convenience for free without touching upstream analytics, PWA scope, or SEO.
+# See: https://github.com/narenana/edgetx-log-parser/pull/7
+if: github.repository_owner != 'narenana'
+
 permissions:
   contents: read
   pages: write
@@ -36,18 +43,7 @@ jobs:
         run: npm run build
         env:
           VITE_BUILD_TARGET: web
-          # Optional: set your Cesium ion token as a GitHub secret for full
-          # 3D globe support. Without it the app falls back to a 2D map.
           VITE_CESIUM_TOKEN: ${{ secrets.VITE_CESIUM_TOKEN }}
-
-      - name: Fix asset paths for GitHub Pages subpath
-        run: |
-          # GitHub Pages serves from /edgetx-log-parser/ — patch index.html
-          # to use relative paths so assets resolve correctly.
-          # vite.config.js already uses base: './' so this is a no-op in most
-          # cases, but we copy the sample log and verify the build is intact.
-          echo "Build output:"
-          ls -lh dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
