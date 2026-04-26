@@ -23,7 +23,14 @@ export default defineConfig(() => {
   const isDesktop = process.env.VITE_BUILD_TARGET === 'desktop'
 
   const pwa = VitePWA({
-    registerType: 'prompt',
+    // ⚠️ Self-destroying SW deploy — flushes a stale SW that was caching
+    // landing-page HTML at /log-viewer/index.html (caused by a Worker bug
+    // where Pages' 308 `Location: /` redirect leaked past the prefix).
+    // The Worker bug is fixed in narenana-website. After verifying users
+    // recover, flip `selfDestroying` back to false in a follow-up deploy
+    // to re-enable the PWA.
+    selfDestroying: true,
+    registerType: 'autoUpdate',
     injectRegister: 'auto',
     devOptions: { enabled: false },
 
