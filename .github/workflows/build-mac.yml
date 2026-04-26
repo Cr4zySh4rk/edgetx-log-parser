@@ -73,7 +73,7 @@ jobs:
         env:
           VITE_BUILD_TARGET: desktop
 
-      - name: Package Windows (installer + portable)
+      - name: Package Windows portable
         run: npx electron-builder --win portable --x64
         env:
           ELECTRON_BUILDER_PUBLISH: never
@@ -86,7 +86,7 @@ jobs:
           Remove-Item release\*.yaml -ErrorAction SilentlyContinue
           Get-ChildItem release\
 
-      - name: Upload Windows artifacts
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -133,12 +133,12 @@ jobs:
             |------|-------------|
             | `EdgeTX-Log-Parser-3.0.0-universal.dmg` | Universal binary — Intel & Apple Silicon (M1/M2/M3/M4) |
 
-            > **First launch:** macOS will show "unidentified developer" since the app is not notarized with a paid Apple Developer certificate. To open: **right-click → Open → Open**. You only need to do this once.
+            > **First launch:** macOS will show "unidentified developer" since the app is not notarized. To open: **right-click → Open → Open**. You only need to do this once.
 
             #### Windows
             | File | Description |
             |------|-------------|
-| `EdgeTX-Log-Parser-3.0.0-Portable.exe` | Portable executable — no install required, run from anywhere |
+            | `EdgeTX-Log-Parser-3.0.0-Portable.exe` | Portable — no install required, run from anywhere |
 
             ---
 
@@ -148,9 +148,8 @@ jobs:
             - **Universal DMG build** — single installer that runs natively on both Intel and Apple Silicon, built on GitHub Actions `macos-latest` runners
             - **Clean releases** — blockmap and auto-update yml files are stripped before upload so only the DMG appears in the release assets
 
-            #### Windows support (restored from upstream)
-            - **NSIS installer** (`*-Setup.exe`) — standard installer with Start Menu integration and uninstaller, custom install directory support
-            - **Portable executable** (`*-Portable.exe`) — single file, no install needed
+            #### Windows support
+            - **Portable executable** — single file, no install needed, run from anywhere
 
             #### GitHub Pages web app
             - Deployed the existing web build target (`VITE_BUILD_TARGET=web`) to GitHub Pages via a dedicated Actions workflow
